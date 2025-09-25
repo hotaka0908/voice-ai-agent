@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎙️ Voice AI Agent</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎙️ Voice AI Agent</h1>
+            <p class="subtitle">あなたの生活をサポートする音声AIアシスタント</p>
+        </header>
+
+        <main class="main">
+            <!-- 音声認識状態表示 -->
+            <div class="voice-status" id="voiceStatus">
+                <div class="status-indicator" id="statusIndicator">
+                    <div class="pulse"></div>
+                </div>
+                <p class="status-text" id="statusText">マイクボタンを押して話しかけてください</p>
+            </div>
+
+            <!-- 音声コントロール -->
+            <div class="voice-controls">
+                <button id="micButton" class="mic-button" title="マイクのON/OFF">
+                    🎤
+                </button>
+                <button id="speakerButton" class="speaker-button" title="スピーカーのON/OFF">
+                    🔊
+                </button>
+            </div>
+
+            <!-- 会話履歴 -->
+            <div class="conversation" id="conversation">
+                <div class="message assistant">
+                    <div class="message-content">
+                        <p>こんにちは！私はあなたの音声AIアシスタントです。何かお手伝いできることはありますか？</p>
+                    </div>
+                    <div class="message-time">{{ timestamp }}</div>
+                </div>
+            </div>
+
+            <!-- テキスト入力（デバッグ用） -->
+            <div class="text-input" id="textInputArea" style="display: none;">
+                <input type="text" id="textInput" placeholder="テキストで入力..." />
+                <button id="sendButton">送信</button>
+            </div>
+        </main>
+
+        <!-- 設定パネル -->
+        <div class="settings-panel" id="settingsPanel">
+            <h3>⚙️ 設定</h3>
+
+            <div class="setting-group">
+                <label>音声認識</label>
+                <select id="sttProvider">
+                    <option value="whisper">OpenAI Whisper</option>
+                    <option value="browser">ブラウザ標準</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>音声合成</label>
+                <select id="ttsProvider">
+                    <option value="elevenlabs">ElevenLabs</option>
+                    <option value="browser">ブラウザ標準</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>LLM</label>
+                <select id="llmProvider">
+                    <option value="claude">Claude</option>
+                    <option value="ollama">Ollama (ローカル)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>音声感度</label>
+                <input type="range" id="sensitivity" min="0" max="100" value="50" />
+                <span id="sensitivityValue">50</span>
+            </div>
+
+            <div class="setting-group">
+                <input type="checkbox" id="debugMode" />
+                <label for="debugMode">デバッグモード</label>
+            </div>
+
+            <button id="resetConversation" class="reset-button">🔄 会話をリセット</button>
+        </div>
+
+        <!-- 設定ボタン -->
+        <button id="settingsButton" class="settings-button" title="設定">
+            ⚙️
+        </button>
+
+        <!-- ステータス表示 -->
+        <div class="status-bar" id="statusBar">
+            <span id="connectionStatus">接続中...</span>
+            <span id="systemStatus">システム準備中</span>
+        </div>
+    </div>
+
+    <!-- 音声プレーヤー -->
+    <audio id="audioPlayer" preload="auto"></audio>
+
+    <!-- JavaScript -->
+    <script src="/static/js/audio.js"></script>
+    <script src="/static/js/websocket.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

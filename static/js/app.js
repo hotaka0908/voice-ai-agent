@@ -5,6 +5,7 @@ class VoiceAgent {
         this.isInitialized = false;
         this.isRecording = false;
         this.isSpeaking = false;
+        this.micActive = false; // 連続リスニングの意図フラグ
         this.audioManager = new AudioManager();
         this.websocketManager = new WebSocketManager();
         this.uiManager = new UIManager();
@@ -143,9 +144,13 @@ class VoiceAgent {
             return;
         }
 
-        if (this.isRecording) {
+        if (this.micActive) {
+            // 連続リスニング停止
+            this.micActive = false;
             await this.stopRecording();
         } else {
+            // 連続リスニング開始
+            this.micActive = true;
             await this.startRecording();
         }
     }
@@ -160,10 +165,24 @@ class VoiceAgent {
 
             await this.audioManager.startRecording();
 
-            // 音声データのストリーミング開始
-            this.audioManager.on('audioData', (audioData) => {
-                this.websocketManager.sendAudioData(audioData);
-            });
+        // 音声データのストリーミング開始
+        this.audioManager.on('audioData', (audioData) => {
+            this.websocketManager.sendAudioData(audioData);
+        });
+
+        // 録音状態イベント
+        this.audioManager.on('recordingStart', () => {
+            this.isRecording = true;
+            this.uiManager.setRecordingState(true);
+        });
+        this.audioManager.on('recordingStop', () => {
+            this.isRecording = false;
+            this.uiManager.setRecordingState(false);
+            // 連続リスニングが有効なら自動再開
+            if (this.micActive) {
+                this.startRecording();
+            }
+        });
 
         } catch (error) {
             console.error('Failed to start recording:', error);

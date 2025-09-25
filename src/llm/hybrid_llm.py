@@ -311,16 +311,35 @@ class OpenAIProvider(LLMProvider):
                 messages=messages,
                 max_tokens=kwargs.get("max_tokens", 1000),
                 temperature=kwargs.get("temperature", 0.7),
+                tools=kwargs.get("tools"),
+                tool_choice=kwargs.get("tool_choice", "auto"),
             )
 
+            choice = response.choices[0]
+            message = choice.message
+
+            tool_calls = []
+            if getattr(message, "tool_calls", None):
+                for tc in message.tool_calls:
+                    try:
+                        import json as _json
+                        args = _json.loads(tc.function.arguments or "{}")
+                    except Exception:
+                        args = {}
+                    tool_calls.append({
+                        "name": tc.function.name,
+                        "parameters": args,
+                    })
+
             return {
-                "content": response.choices[0].message.content,
+                "content": message.content or "",
                 "model": self.model,
                 "usage": {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens
-                }
+                },
+                "tool_calls": tool_calls,
             }
 
         except Exception as e:
@@ -457,11 +476,14 @@ class HybridLLM:
                 {"role": "user", "content": text}
             ]
 
-            # LLM呼び出し
-            response = await self._generate_with_fallback(messages)
+            # OpenAIのfunction-callingに対応するためツールスキーマを渡す（他プロバイダは無視）
+            openai_tools_schema = self._convert_tools_to_openai_schema(available_tools)
 
-            # ツール呼び出しの解析
-            tool_calls = self._parse_tool_calls(response["content"])
+            # LLM呼び出し（provider側でtoolsを解釈できる場合は使用）
+            response = await self._generate_with_fallback(messages, tools=openai_tools_schema)
+
+            # ツール呼び出しの解析（providerがtool_callsを返す場合はそれを優先）
+            tool_calls = response.get("tool_calls") or self._parse_tool_calls(response.get("content", ""))
 
             return {
                 "response": response["content"],
@@ -595,6 +617,46 @@ class HybridLLM:
                     logger.warning(f"Alternative provider {name} failed: {e}")
 
         raise RuntimeError("All LLM providers failed")
+
+    def _convert_tools_to_openai_schema(self, tools: List[Dict]) -> List[Dict[str, Any]]:
+        """ToolRegistryの定義をOpenAI toolsスキーマに変換"""
+        if not tools:
+            return []
+
+        def param_to_schema(p: Dict[str, Any]) -> Dict[str, Any]:
+            schema = {"type": p.get("type", "string")}
+            if p.get("description"):
+                schema["description"] = p["description"]
+            if p.get("enum"):
+                schema["enum"] = p["enum"]
+            if p.get("default") is not None:
+                schema["default"] = p["default"]
+            return schema
+
+        result = []
+        for t in tools:
+            params = t.get("parameters", [])
+            properties = {p["name"]: param_to_schema(p) for p in params}
+            required = [p["name"] for p in params if p.get("required")]
+
+            parameters_schema = {
+                "type": "object",
+                "properties": properties,
+                "additionalProperties": False,
+            }
+            if required:
+                parameters_schema["required"] = required
+
+            result.append({
+                "type": "function",
+                "function": {
+                    "name": t.get("name"),
+                    "description": t.get("description", ""),
+                    "parameters": parameters_schema,
+                }
+            })
+
+        return result
 
     async def get_status(self) -> Dict[str, Any]:
         """システム状態の取得"""

@@ -131,17 +131,76 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             message = await websocket.receive_json()
             logger.debug(f"Received chat message: {message}")
 
-            # テキスト処理
-            if message.get("type") == "message":
-                response = await app.state.voice_agent.process_text(
-                    message.get("message", "")
-                )
+            msg_type = message.get("type")
 
-                # 応答の送信
+            # テキストメッセージ（互換: type='message' か 'text'）
+            if msg_type in ("message", "text"):
+                text_payload = message.get("message") or message.get("content") or ""
+                response = await app.state.voice_agent.process_text(text_payload)
+
                 await websocket.send_json({
                     "type": "response",
                     "content": response.get("text", ""),
                     "audio_url": response.get("audio_url")
+                })
+
+            # 設定更新
+            elif msg_type == "config_update":
+                cfg = message.get("config", {}) or {}
+
+                # 既存の構成と整合する形に変換
+                llm_updates = {}
+                tts_updates = {}
+
+                if "llm_provider" in cfg:
+                    llm_updates["primary_provider"] = cfg["llm_provider"]
+                if "tts_provider" in cfg:
+                    tts_updates["provider"] = cfg["tts_provider"]
+
+                updates = {}
+                if llm_updates:
+                    updates["llm"] = llm_updates
+                if tts_updates:
+                    updates["tts"] = tts_updates
+
+                if updates:
+                    await app.state.voice_agent.update_config(updates)
+
+                await websocket.send_json({
+                    "type": "status",
+                    "status": "configured",
+                    "applied": updates
+                })
+
+            # 会話リセット
+            elif msg_type == "reset":
+                try:
+                    await app.state.voice_agent.context.reset_context()
+                    await websocket.send_json({
+                        "type": "status",
+                        "status": "reset_done"
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to reset context: {e}
+")
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "コンテキストのリセットに失敗しました"
+                    })
+
+            # ステータス要求
+            elif msg_type == "status_request":
+                status = await app.state.voice_agent.get_status()
+                await websocket.send_json({
+                    "type": "status",
+                    "status": status
+                })
+
+            else:
+                logger.warning(f"Unknown chat message type: {msg_type}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Unknown message type: {msg_type}"
                 })
 
     except WebSocketDisconnect:

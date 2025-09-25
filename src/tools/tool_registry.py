@@ -67,6 +67,8 @@ class ToolRegistry:
             from src.tools.calculator_tool import CalculatorTool
             from src.tools.memory_tool import MemoryTool
             from src.tools.search_tool import SearchTool
+            from src.tools.mobile_bridge_tool import MobileBridgeTool
+            from src.tools.mcp_tool import MCPTool
 
             built_in_tools = [
                 WeatherTool(),
@@ -74,6 +76,8 @@ class ToolRegistry:
                 CalculatorTool(),
                 MemoryTool(),
                 SearchTool(),
+                MobileBridgeTool(),
+                MCPTool(),
             ]
 
             for tool in built_in_tools:

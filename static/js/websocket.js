@@ -119,9 +119,11 @@ class WebSocketManager {
             throw new Error('WebSocket not connected');
         }
 
+        // サーバ側は {type:'message', message:'...'} を想定
+        // 後方互換のため、明確に message フィールドで送信する
         const message = {
-            type: 'text',
-            content: text,
+            type: 'message',
+            message: text,
             timestamp: new Date().toISOString()
         };
 

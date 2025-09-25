@@ -9,6 +9,7 @@ class AudioManager {
         this.isRecording = false;
         this.isMuted = false;
         this.audioChunks = [];
+        this.lastFlushAt = 0;
         this.stream = null;
         this.eventListeners = {};
 
@@ -94,6 +95,7 @@ class AudioManager {
             // 録音開始
             this.mediaRecorder.start(100); // 100ms間隔でデータを取得
             this.isRecording = true;
+            this.emit('recordingStart');
 
             // タイマーの設定
             this.startSilenceDetection();
@@ -128,6 +130,7 @@ class AudioManager {
             }
 
             console.log('Audio recording stopped');
+            this.emit('recordingStop');
 
         } catch (error) {
             console.error('Failed to stop recording:', error);
@@ -146,7 +149,7 @@ class AudioManager {
 
             this.microphone.connect(this.analyser);
 
-            // 音声レベルの監視開始
+            // 音声レベルの監視開始（VADによる区間切り出し）
             this.startVolumeMonitoring();
 
         } catch (error) {
@@ -177,8 +180,8 @@ class AudioManager {
             if (rms < this.config.silenceThreshold) {
                 if (!this.silenceTimer) {
                     this.silenceTimer = setTimeout(() => {
-                        console.log('Silence detected, stopping recording');
-                        this.stopRecording();
+                        console.log('Silence detected, flushing segment');
+                        this.flushSegment();
                     }, this.config.silenceTimeout);
                 }
             } else {
@@ -194,6 +197,44 @@ class AudioManager {
         };
 
         checkVolume();
+    }
+
+    async flushSegment() {
+        try {
+            if (!this.isRecording) return;
+
+            // 直近のデータを確実に取り込む
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                try { this.mediaRecorder.requestData(); } catch (_) {}
+            }
+
+            // 少し待って ondataavailable を反映
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            if (!this.audioChunks || this.audioChunks.length === 0) {
+                return;
+            }
+
+            const now = Date.now();
+            if (now - this.lastFlushAt < 500) {
+                // 連続フラッシュを抑制
+                return;
+            }
+
+            const segmentBlob = new Blob(this.audioChunks, { type: this.getSupportedMimeType() });
+            // 次の区間のためにバッファをリセット
+            this.audioChunks = [];
+            this.lastFlushAt = now;
+
+            // WAV化して送出
+            const audioBuffer = await this.convertToWAV(segmentBlob);
+            if (audioBuffer && audioBuffer.byteLength > 0) {
+                this.emit('audioData', audioBuffer);
+                console.log('Flushed audio segment:', audioBuffer.byteLength, 'bytes');
+            }
+        } catch (e) {
+            console.error('Failed to flush segment:', e);
+        }
     }
 
     startSilenceDetection() {
@@ -238,6 +279,10 @@ class AudioManager {
             this.emit('audioData', audioBuffer);
 
             console.log('Audio recording processed:', audioBuffer.byteLength, 'bytes');
+
+            // 次の録音のためにバッファリセット
+            this.audioChunks = [];
+            this.lastFlushAt = Date.now();
 
         } catch (error) {
             console.error('Failed to handle recording completion:', error);

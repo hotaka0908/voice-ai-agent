@@ -121,7 +121,33 @@ ElevenLabsで音声をクローンして、`.env`のVOICE_IDを変更
 
 ## 🚀 デプロイ
 
+### Vercel（推奨）
+
+クラウドでの簡単デプロイ：
+
+1. **環境変数の設定**
+   ```bash
+   OPENAI_API_KEY=your_openai_api_key
+   ANTHROPIC_API_KEY=your_anthropic_api_key
+   ```
+
+2. **デプロイ実行**
+   ```bash
+   # GitHubリポジトリをVercelに接続
+   # 自動デプロイが開始されます
+   ```
+
+3. **利用可能な機能**
+   - ✅ REST API チャット
+   - ✅ LLM対話（Claude、OpenAI）
+   - ✅ 基本ツール機能
+   - ❌ WebSocket音声（サーバーレス制限）
+
+📚 **詳細**: [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) を参照
+
 ### Docker Compose
+
+ローカル・VPS デプロイ：
 
 ```yaml
 # docker-compose.yml

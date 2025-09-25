@@ -85,6 +85,12 @@ class VoiceAgent {
             this.handleWebSocketMessage(data);
         });
 
+        // 音声からのメッセージ処理
+        this.websocketManager.on('voiceMessage', (data) => {
+            console.log('🎵 voiceMessage event received in app.js:', data);
+            this.handleVoiceMessage(data);
+        });
+
         this.websocketManager.on('connect', () => {
             this.uiManager.setConnectionStatus('connected');
         });
@@ -228,9 +234,53 @@ class VoiceAgent {
             case 'audio':
                 this.handleAudioResponse(data);
                 break;
+            case 'user_message':
+            case 'assistant_message':
+                // 音声メッセージは専用ハンドラーに転送
+                console.log('🎯 Forwarding voice message to handleVoiceMessage:', data.type);
+                this.handleVoiceMessage(data);
+                break;
             default:
                 console.warn('Unknown message type:', data.type);
         }
+    }
+
+    handleVoiceMessage(data) {
+        console.log('🎯 APP handleVoiceMessage called with:', data);
+        console.log('🎯 Message type:', data.type);
+        console.log('🎯 Message content:', data.content);
+
+        switch (data.type) {
+            case 'user_message':
+                console.log('👤 Processing user message:', data.content);
+                // ユーザーの音声認識結果をチャット欄に表示
+                this.uiManager.addMessage('user', data.content, data.timestamp);
+                console.log('👤 User message added to UI');
+                break;
+            case 'assistant_message':
+                console.log('🤖 Processing assistant message:', data.content);
+                // AIの応答をチャット欄に表示
+                this.uiManager.addMessage('assistant', data.content, data.timestamp);
+                console.log('🤖 Assistant message added to UI');
+
+                // 音声がある場合は再生
+                if (data.audio_url) {
+                    console.log('🔊 Playing audio:', data.audio_url);
+                    console.log('🔊 About to call playAudioResponse...');
+                    this.playAudioResponse(data.audio_url)
+                        .then(() => console.log('🔊 playAudioResponse promise resolved'))
+                        .catch(err => console.error('🔊 playAudioResponse promise rejected:', err));
+                } else {
+                    console.log('⚠️ No audio_url in assistant message');
+                }
+                break;
+            default:
+                console.warn('❓ Unknown voice message type:', data.type);
+        }
+
+        // 処理中状態をリセット
+        console.log('✅ Resetting processing state');
+        this.uiManager.setStatus('ready', 'システム準備完了');
     }
 
     async handleResponse(data) {
@@ -281,15 +331,19 @@ class VoiceAgent {
 
     async playAudioResponse(audioUrl) {
         try {
+            console.log('🔊 APP playAudioResponse called with:', audioUrl);
             this.isSpeaking = true;
             this.uiManager.setSpeakingState(true);
 
+            console.log('🔊 Calling audioManager.playAudio...');
             await this.audioManager.playAudio(audioUrl);
+            console.log('🔊 audioManager.playAudio completed');
 
             this.isSpeaking = false;
             this.uiManager.setSpeakingState(false);
         } catch (error) {
-            console.error('Failed to play audio:', error);
+            console.error('❌ Failed to play audio:', error);
+            console.error('❌ Error details:', error.stack);
             this.isSpeaking = false;
             this.uiManager.setSpeakingState(false);
         }

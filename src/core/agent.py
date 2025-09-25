@@ -6,6 +6,7 @@ Voice Agent - メインエージェントクラス
 
 import asyncio
 from typing import Dict, Any, Optional
+from datetime import datetime
 from loguru import logger
 
 from src.audio.speech_to_text import SpeechToText
@@ -86,7 +87,11 @@ class VoiceAgent:
             logger.info(f"Recognized: {text}")
 
             # 2. テキストを処理
-            return await self.process_text(text)
+            text_response = await self.process_text(text)
+
+            # 3. 認識されたテキストも含めて返す
+            text_response["user_text"] = text
+            return text_response
 
         except Exception as e:
             logger.error(f"Error processing audio: {e}")
@@ -145,7 +150,8 @@ class VoiceAgent:
             return {
                 "text": final_response,
                 "audio_url": audio_url,
-                "tool_results": llm_response.get("tool_calls", [])
+                "tool_results": llm_response.get("tool_calls", []),
+                "timestamp": await self._get_current_timestamp()
             }
 
         except Exception as e:
@@ -223,3 +229,7 @@ class VoiceAgent:
 
         self.is_initialized = False
         logger.info("Voice Agent cleanup completed")
+
+    async def _get_current_timestamp(self) -> str:
+        """現在のタイムスタンプをISO形式で返す"""
+        return datetime.now().isoformat()

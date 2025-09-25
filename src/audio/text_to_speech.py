@@ -26,6 +26,13 @@ except ImportError:
     GTTS_AVAILABLE = False
     logger.warning("gTTS not available")
 
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI not available")
+
 import tempfile
 
 
@@ -74,6 +81,10 @@ class TextToSpeech:
 
                 # 音声リストの取得とデフォルト音声の設定
                 await self._initialize_elevenlabs()
+
+            elif provider == "openai" and os.getenv("OPENAI_API_KEY") and OPENAI_AVAILABLE:
+                logger.info("Initializing OpenAI TTS")
+                self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
             elif provider == "gtts" and GTTS_AVAILABLE:
                 logger.info("Using Google TTS (gTTS)")
@@ -148,6 +159,8 @@ class TextToSpeech:
             audio_path = None
             if self.config["provider"] == "elevenlabs" and self.elevenlabs_client:
                 audio_path = await self._synthesize_elevenlabs(text)
+            elif self.config["provider"] == "openai" and hasattr(self, 'openai_client'):
+                audio_path = await self._synthesize_openai(text)
             elif self.config["provider"] == "gtts" and GTTS_AVAILABLE:
                 audio_path = await self._synthesize_gtts(text)
             else:
@@ -155,9 +168,9 @@ class TextToSpeech:
                 return ""
 
             if audio_path:
-                # 相対URLに変換
-                relative_path = os.path.relpath(audio_path, "./static")
-                audio_url = f"/static/{relative_path.replace(os.sep, '/')}"
+                # 相対URLに変換（dataディレクトリベース）
+                relative_path = os.path.relpath(audio_path, "./data")
+                audio_url = f"/data/{relative_path.replace(os.sep, '/')}"
 
                 # キャッシュに保存
                 if self.config["cache_enabled"]:
@@ -321,11 +334,42 @@ class TextToSpeech:
         except Exception as e:
             logger.warning(f"Failed to clear disk cache: {e}")
 
+    async def _synthesize_openai(self, text: str) -> Optional[str]:
+        """OpenAI TTSによる音声合成"""
+        try:
+            logger.debug(f"Synthesizing with OpenAI TTS: {text[:50]}...")
+
+            # OpenAI TTS API呼び出し
+            response = self.openai_client.audio.speech.create(
+                model="tts-1",  # tts-1 または tts-1-hd
+                voice="alloy",  # alloy, echo, fable, onyx, nova, shimmer
+                input=text,
+                response_format="mp3"
+            )
+
+            # ファイルに保存
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            filename = f"tts_openai_{timestamp}.mp3"
+            audio_path = os.path.join(self.config["output_directory"], filename)
+
+            # 音声データを保存
+            with open(audio_path, 'wb') as f:
+                f.write(response.content)
+
+            logger.debug(f"OpenAI TTS audio saved to: {audio_path}")
+            return audio_path
+
+        except Exception as e:
+            logger.error(f"OpenAI TTS synthesis failed: {e}")
+            raise
+
     async def cleanup(self):
         """リソースのクリーンアップ"""
         logger.info("Cleaning up Text-to-Speech...")
 
         self.elevenlabs_client = None
+        if hasattr(self, 'openai_client'):
+            self.openai_client = None
         self.audio_cache.clear()
         self.is_initialized = False
 

@@ -67,10 +67,21 @@ class WebSocketManager {
             this.voiceWs.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('Received voice message:', data);
-                    this.emit('message', data);
+                    console.log('🎤 VOICE WebSocket received:', data);
+                    console.log('🎤 Message type:', data.type);
+                    console.log('🎤 Message content:', data.content);
+
+                    // 音声から認識されたメッセージをチャット欄に表示
+                    if (data.type === 'user_message' || data.type === 'assistant_message') {
+                        console.log('🎤 Emitting voiceMessage event:', data);
+                        this.emit('voiceMessage', data);
+                    } else {
+                        console.log('🎤 Emitting regular message event:', data);
+                        this.emit('message', data);
+                    }
                 } catch (error) {
-                    console.error('Failed to parse voice WebSocket message:', error);
+                    console.error('❌ Failed to parse voice WebSocket message:', error);
+                    console.error('❌ Raw message:', event.data);
                 }
             };
 

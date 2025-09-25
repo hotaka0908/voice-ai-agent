@@ -59,6 +59,7 @@ app = FastAPI(
 
 # 静的ファイルとテンプレートの設定
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/data", StaticFiles(directory="data"), name="data")
 templates = Jinja2Templates(directory="templates")
 
 
@@ -88,12 +89,28 @@ async def websocket_voice_endpoint(websocket: WebSocket):
             # 音声エージェントで処理
             response = await app.state.voice_agent.process_audio(data)
 
-            # 応答の送信
+            # 応答の送信（音声認識結果とAI応答を分けて送信）
             if response:
-                await websocket.send_json({
-                    "type": "response",
-                    "data": response
-                })
+                # 音声認識結果をチャット欄に表示
+                if response.get("user_text"):
+                    user_message = {
+                        "type": "user_message",
+                        "content": response.get("user_text"),
+                        "timestamp": response.get("timestamp")
+                    }
+                    logger.info(f"🎤 Sending user_message to WebSocket: {user_message}")
+                    await websocket.send_json(user_message)
+
+                # AI応答をチャット欄に表示
+                if response.get("text"):
+                    assistant_message = {
+                        "type": "assistant_message",
+                        "content": response.get("text"),
+                        "audio_url": response.get("audio_url"),
+                        "timestamp": response.get("timestamp")
+                    }
+                    logger.info(f"🤖 Sending assistant_message to WebSocket: {assistant_message}")
+                    await websocket.send_json(assistant_message)
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
@@ -115,9 +132,9 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             logger.debug(f"Received chat message: {message}")
 
             # テキスト処理
-            if message.get("type") == "text":
+            if message.get("type") == "message":
                 response = await app.state.voice_agent.process_text(
-                    message.get("content", "")
+                    message.get("message", "")
                 )
 
                 # 応答の送信

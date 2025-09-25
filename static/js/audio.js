@@ -308,18 +308,40 @@ class AudioManager {
 
     async playAudio(audioUrl) {
         try {
-            console.log('Playing audio:', audioUrl);
+            console.log('🔊 AUDIO Playing audio:', audioUrl);
 
             const audio = new Audio(audioUrl);
 
+            // 音声ファイルの準備
+            audio.preload = 'auto';
+            audio.volume = this.isMuted ? 0 : 1;
+
             return new Promise((resolve, reject) => {
+                audio.oncanplay = () => {
+                    console.log('🔊 AUDIO Audio can play');
+                };
+
+                audio.onloadeddata = () => {
+                    console.log('🔊 AUDIO Audio loaded');
+                };
+
+                audio.onplay = () => {
+                    console.log('🔊 AUDIO Audio started playing');
+                };
+
                 audio.onended = () => {
-                    console.log('Audio playback finished');
+                    console.log('🔊 AUDIO Audio playback finished');
                     resolve();
                 };
 
                 audio.onerror = (error) => {
-                    console.error('Audio playback error:', error);
+                    console.error('❌ AUDIO Audio playback error:', error);
+                    console.error('❌ AUDIO Error details:', {
+                        error: error.target.error,
+                        networkState: audio.networkState,
+                        readyState: audio.readyState,
+                        src: audio.src
+                    });
                     reject(error);
                 };
 
@@ -328,11 +350,22 @@ class AudioManager {
                     audio.muted = true;
                 }
 
-                audio.play().catch(reject);
+                console.log('🔊 AUDIO About to play audio...');
+                audio.play()
+                    .then(() => {
+                        console.log('🔊 AUDIO audio.play() promise resolved');
+                    })
+                    .catch((error) => {
+                        console.error('❌ AUDIO audio.play() promise rejected:', error);
+                        if (error.name === 'NotAllowedError') {
+                            console.error('❌ AUDIO Autoplay blocked by browser. User interaction required.');
+                        }
+                        reject(error);
+                    });
             });
 
         } catch (error) {
-            console.error('Failed to play audio:', error);
+            console.error('❌ AUDIO Failed to play audio:', error);
             throw error;
         }
     }

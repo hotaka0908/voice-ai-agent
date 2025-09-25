@@ -1,0 +1,30 @@
+# Vercel用軽量版依存関係
+# 必要最小限のパッケージのみ含む
+
+# Web Framework (必須)
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# AI/LLM (コア機能)
+anthropic==0.7.8
+openai==1.3.8
+aiohttp==3.9.0
+
+# Utilities (必須)
+python-dotenv==1.0.0
+pydantic==2.5.0
+python-multipart==0.0.6
+loguru==0.7.2
+pytz==2023.3
+
+# Templating
+jinja2==3.1.2
+
+# HTTP requests
+requests==2.31.0
+
+# ASGI server
+starlette==0.27.0
+
+# JSON handling
+typing-extensions==4.8.0

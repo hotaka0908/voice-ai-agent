@@ -181,8 +181,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         "status": "reset_done"
                     })
                 except Exception as e:
-                    logger.error(f"Failed to reset context: {e}
-")
+                    logger.error(f"Failed to reset context: {e}")
                     await websocket.send_json({
                         "type": "error",
                         "message": "コンテキストのリセットに失敗しました"

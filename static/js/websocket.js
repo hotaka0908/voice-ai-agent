@@ -170,6 +170,21 @@ class WebSocketManager {
         console.log('Sent conversation reset request');
     }
 
+    async savePersonalInfo(personalInfo) {
+        if (!this.isConnected || !this.chatWs) {
+            throw new Error('WebSocket not connected');
+        }
+
+        const message = {
+            type: 'save_personal_info',
+            personal_info: personalInfo,
+            timestamp: new Date().toISOString()
+        };
+
+        this.chatWs.send(JSON.stringify(message));
+        console.log('Sent personal info save request:', personalInfo);
+    }
+
     async getSystemStatus() {
         if (!this.isConnected || !this.chatWs) {
             throw new Error('WebSocket not connected');

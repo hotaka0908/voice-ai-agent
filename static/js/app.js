@@ -46,10 +46,6 @@ class VoiceAgent {
             this.toggleRecording();
         });
 
-        // スピーカーボタン
-        document.getElementById('speakerButton').addEventListener('click', () => {
-            this.toggleSpeaker();
-        });
 
         // テキスト送信ボタン
         document.getElementById('sendButton').addEventListener('click', () => {
@@ -136,6 +132,16 @@ class VoiceAgent {
             document.getElementById('sensitivityValue').textContent = e.target.value;
             this.updateSetting('sensitivity', parseInt(e.target.value));
         });
+
+        // 個人情報保存ボタン
+        document.getElementById('savePersonalInfo').addEventListener('click', () => {
+            this.savePersonalInfo();
+        });
+
+        // 設定パネル閉じるボタン
+        document.getElementById('closeSettingsButton').addEventListener('click', () => {
+            this.uiManager.closeSettings();
+        });
     }
 
     async toggleRecording() {
@@ -208,10 +214,6 @@ class VoiceAgent {
         }
     }
 
-    toggleSpeaker() {
-        const isMuted = this.audioManager.toggleMute();
-        this.uiManager.setSpeakerState(!isMuted);
-    }
 
     async sendTextMessage() {
         const textInput = document.getElementById('textInput');
@@ -404,6 +406,43 @@ class VoiceAgent {
                 console.error('Failed to reset conversation:', error);
                 this.uiManager.showError('会話のリセットに失敗しました');
             }
+        }
+    }
+
+    async savePersonalInfo() {
+        try {
+            console.log('Saving personal information...');
+
+            // 個人情報フォームの値を取得
+            const personalInfo = {
+                name: document.getElementById('userName').value.trim(),
+                age: parseInt(document.getElementById('userAge').value) || null,
+                location: document.getElementById('userLocation').value.trim(),
+                occupation: document.getElementById('userOccupation').value.trim(),
+                hobbies: document.getElementById('userHobbies').value.trim()
+            };
+
+            // 空の値をフィルタリング
+            const filteredInfo = Object.fromEntries(
+                Object.entries(personalInfo).filter(([key, value]) =>
+                    value !== null && value !== ''
+                )
+            );
+
+            if (Object.keys(filteredInfo).length === 0) {
+                this.uiManager.showError('保存する情報を入力してください');
+                return;
+            }
+
+            // WebSocket経由で個人情報を保存
+            await this.websocketManager.savePersonalInfo(filteredInfo);
+
+            this.uiManager.showSuccess('個人情報を保存しました');
+            console.log('Personal information saved:', filteredInfo);
+
+        } catch (error) {
+            console.error('Failed to save personal information:', error);
+            this.uiManager.showError('個人情報の保存に失敗しました: ' + error.message);
         }
     }
 

@@ -15,6 +15,7 @@ from src.llm.hybrid_llm import HybridLLM
 from src.memory.personal_memory import PersonalMemory
 from src.tools.tool_registry import ToolRegistry
 from src.core.context_manager import ContextManager
+from src.core.rule_processor import RuleProcessor
 
 
 class VoiceAgent:
@@ -31,6 +32,7 @@ class VoiceAgent:
         self.memory: Optional[PersonalMemory] = None
         self.tools: Optional[ToolRegistry] = None
         self.context: Optional[ContextManager] = None
+        self.rule_processor: Optional[RuleProcessor] = None
         self.is_initialized = False
 
     async def initialize(self):
@@ -45,6 +47,7 @@ class VoiceAgent:
             self.memory = PersonalMemory()
             self.tools = ToolRegistry()
             self.context = ContextManager()
+            self.rule_processor = RuleProcessor()
 
             # 初期化の実行
             await asyncio.gather(
@@ -53,7 +56,8 @@ class VoiceAgent:
                 self.llm.initialize(),
                 self.memory.initialize(),
                 self.tools.initialize(),
-                self.context.initialize()
+                self.context.initialize(),
+                self.rule_processor.initialize()
             )
 
             self.is_initialized = True
@@ -114,18 +118,50 @@ class VoiceAgent:
             # 1. コンテキストの更新
             await self.context.add_user_message(text)
 
-            # 2. 記憶からの関連情報取得
+            # 2. ルールベース処理をまず試行
+            rule_response = await self.rule_processor.process_input(
+                text,
+                context=self.context.get_context()
+            )
+
+            # ルールにマッチした場合はそのまま返す
+            if rule_response and rule_response.get("is_final"):
+                final_response = rule_response.get("response", "")
+
+                # コンテキストに追加
+                await self.context.add_assistant_message(final_response)
+
+                # 記憶への保存
+                await self.memory.store_interaction(text, final_response)
+
+                # 音声合成
+                audio_url = await self.tts.synthesize(final_response)
+
+                return {
+                    "text": final_response,
+                    "audio_url": audio_url,
+                    "tool_results": [],
+                    "rule_used": rule_response.get("rule_name"),
+                    "timestamp": await self._get_current_timestamp()
+                }
+
+            # 3. ルールにマッチしなかった場合はAI処理
+            # 記憶からの関連情報取得
             relevant_memories = await self.memory.search_relevant(text)
 
-            # 3. LLMで意図理解とツール選択
+            # 4. LLMで意図理解とツール選択
+            # メモリツールを取得
+            memory_tool = self.tools.get_tool("memory")
+
             llm_response = await self.llm.process_with_tools(
                 text=text,
                 context=self.context.get_context(),
                 memories=relevant_memories,
-                available_tools=self.tools.get_available_tools()
+                available_tools=self.tools.get_available_tools(),
+                memory_tool=memory_tool
             )
 
-            # 4. ツールの実行（必要な場合）
+            # 5. ツールの実行（必要な場合）
             if llm_response.get("tool_calls"):
                 tool_results = await self._execute_tools(llm_response["tool_calls"])
 
@@ -138,13 +174,13 @@ class VoiceAgent:
             else:
                 final_response = llm_response.get("response", "")
 
-            # 5. 応答をコンテキストに追加
+            # 6. 応答をコンテキストに追加
             await self.context.add_assistant_message(final_response)
 
-            # 6. 記憶への保存
+            # 7. 記憶への保存
             await self.memory.store_interaction(text, final_response)
 
-            # 7. 音声合成
+            # 8. 音声合成
             audio_url = await self.tts.synthesize(final_response)
 
             return {
@@ -224,6 +260,8 @@ class VoiceAgent:
             cleanup_tasks.append(self.memory.cleanup())
         if self.tools:
             cleanup_tasks.append(self.tools.cleanup())
+        if self.rule_processor:
+            cleanup_tasks.append(self.rule_processor.cleanup())
 
         await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 

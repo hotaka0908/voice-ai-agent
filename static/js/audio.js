@@ -180,8 +180,8 @@ class AudioManager {
             if (rms < this.config.silenceThreshold) {
                 if (!this.silenceTimer) {
                     this.silenceTimer = setTimeout(() => {
-                        console.log('Silence detected, flushing segment');
-                        this.flushSegment();
+                        console.log('Silence detected, stopping recording');
+                        this.stopRecording();
                     }, this.config.silenceTimeout);
                 }
             } else {
@@ -216,8 +216,8 @@ class AudioManager {
             }
 
             const now = Date.now();
-            if (now - this.lastFlushAt < 500) {
-                // 連続フラッシュを抑制
+            if (now - this.lastFlushAt < 2000) {
+                // 連続フラッシュを抑制（2秒間隔）
                 return;
             }
 

@@ -187,6 +187,29 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         "message": "コンテキストのリセットに失敗しました"
                     })
 
+            # 個人情報保存
+            elif msg_type == "save_personal_info":
+                personal_info = message.get("personal_info", {})
+                try:
+                    # メモリツール経由で個人情報を保存
+                    memory_tool = app.state.voice_agent.tools.get_tool("memory")
+                    if memory_tool:
+                        await memory_tool.store_personal_info(personal_info)
+                    else:
+                        raise Exception("Memory tool not found")
+                    await websocket.send_json({
+                        "type": "status",
+                        "status": "personal_info_saved",
+                        "message": "個人情報を保存しました"
+                    })
+                    logger.info(f"Personal information saved: {personal_info}")
+                except Exception as e:
+                    logger.error(f"Failed to save personal information: {e}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "個人情報の保存に失敗しました"
+                    })
+
             # ステータス要求
             elif msg_type == "status_request":
                 status = await app.state.voice_agent.get_status()

@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎙️ Voice AI Agent</title>
+    <title>Voice AI Agent</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🎙️ Voice AI Agent</h1>
+            <h1>Voice AI Agent</h1>
             <p class="subtitle">あなたの生活をサポートする音声AIアシスタント</p>
         </header>
 
@@ -18,7 +18,13 @@
             <!-- 音声認識状態表示 -->
             <div class="voice-status" id="voiceStatus">
                 <div class="status-indicator" id="statusIndicator">
-                    <div class="pulse"></div>
+                    <div class="face">
+                        <div class="eyes">
+                            <div class="eye"></div>
+                            <div class="eye"></div>
+                        </div>
+                        <div class="mouth" id="mouth"></div>
+                    </div>
                 </div>
                 <p class="status-text" id="statusText">マイクボタンを押して話しかけてください</p>
             </div>
@@ -27,9 +33,6 @@
             <div class="voice-controls">
                 <button id="micButton" class="mic-button" title="マイクのON/OFF">
                     🎤
-                </button>
-                <button id="speakerButton" class="speaker-button" title="スピーカーのON/OFF">
-                    🔊
                 </button>
             </div>
 
@@ -52,7 +55,10 @@
 
         <!-- 設定パネル -->
         <div class="settings-panel" id="settingsPanel">
-            <h3>⚙️ 設定</h3>
+            <div class="settings-header">
+                <h3>⚙️ 設定</h3>
+                <button id="closeSettingsButton" class="close-settings-button" title="設定を閉じる">✕</button>
+            </div>
 
             <div class="setting-group">
                 <label>音声認識</label>
@@ -89,12 +95,124 @@
                 <label for="debugMode">デバッグモード</label>
             </div>
 
+            <!-- 個人情報セクション -->
+            <div class="setting-section">
+                <h4>👤 個人情報</h4>
+
+                <div class="setting-group">
+                    <label for="userName">お名前</label>
+                    <input type="text" id="userName" placeholder="例: 山田太郎" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userAge">年齢</label>
+                    <input type="number" id="userAge" min="1" max="120" placeholder="例: 30" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userLocation">居住地</label>
+                    <input type="text" id="userLocation" placeholder="例: 東京都" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userOccupation">職業</label>
+                    <input type="text" id="userOccupation" placeholder="例: エンジニア" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userHobbies">趣味・興味</label>
+                    <textarea id="userHobbies" rows="2" placeholder="例: 読書、映画鑑賞、プログラミング"></textarea>
+                </div>
+
+                <button id="savePersonalInfo" class="save-button">💾 個人情報を保存</button>
+            </div>
+
+        </div>
+
+        <!-- 設定パネル -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="settings-header">
+                <h3>⚙️ 設定</h3>
+                <button id="closeSettingsButton" class="close-settings-button" title="設定を閉じる">✕</button>
+            </div>
+
+            <div class="setting-group">
+                <label>音声認識</label>
+                <select id="sttProvider">
+                    <option value="whisper">OpenAI Whisper</option>
+                    <option value="browser">ブラウザ標準</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>音声合成</label>
+                <select id="ttsProvider">
+                    <option value="elevenlabs">ElevenLabs</option>
+                    <option value="browser">ブラウザ標準</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>LLM</label>
+                <select id="llmProvider">
+                    <option value="claude">Claude</option>
+                    <option value="ollama">Ollama (ローカル)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>音声感度</label>
+                <input type="range" id="sensitivity" min="0" max="100" value="50" />
+                <span id="sensitivityValue">50</span>
+            </div>
+
+            <div class="setting-group">
+                <input type="checkbox" id="debugMode" />
+                <label for="debugMode">デバッグモード</label>
+            </div>
+
+            <!-- 個人情報セクション -->
+            <div class="setting-section">
+                <h4>👤 個人情報</h4>
+
+                <div class="setting-group">
+                    <label for="userName">お名前</label>
+                    <input type="text" id="userName" placeholder="例: 山田太郎" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userAge">年齢</label>
+                    <input type="number" id="userAge" min="1" max="120" placeholder="例: 30" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userLocation">居住地</label>
+                    <input type="text" id="userLocation" placeholder="例: 東京都" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userOccupation">職業</label>
+                    <input type="text" id="userOccupation" placeholder="例: エンジニア" />
+                </div>
+
+                <div class="setting-group">
+                    <label for="userHobbies">趣味・興味</label>
+                    <textarea id="userHobbies" rows="2" placeholder="例: 読書、映画鑑賞、プログラミング"></textarea>
+                </div>
+
+                <button id="savePersonalInfo" class="save-button">💾 個人情報を保存</button>
+            </div>
+
             <button id="resetConversation" class="reset-button">🔄 会話をリセット</button>
         </div>
 
-        <!-- 設定ボタン -->
-        <button id="settingsButton" class="settings-button" title="設定">
-            ⚙️
+        <!-- ハンバーガーメニューボタン -->
+        <button id="settingsButton" class="hamburger-button" title="設定">
+            <div class="hamburger-icon">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
         </button>
 
         <!-- ステータス表示 -->

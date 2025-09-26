@@ -16,10 +16,10 @@ class UIManager {
             voiceStatus: document.getElementById('voiceStatus'),
             statusIndicator: document.getElementById('statusIndicator'),
             statusText: document.getElementById('statusText'),
+            mouth: document.getElementById('mouth'),
 
             // コントロールボタン
             micButton: document.getElementById('micButton'),
-            speakerButton: document.getElementById('speakerButton'),
 
             // 会話エリア
             conversation: document.getElementById('conversation'),
@@ -53,6 +53,29 @@ class UIManager {
         this.setupAutoScroll();
 
         console.log('UI Manager initialized successfully');
+    }
+
+    // 顔の状態を設定
+    setFaceState(state) {
+        const mouth = this.elements.mouth;
+        if (!mouth) return;
+
+        // 既存のクラスを削除
+        mouth.classList.remove('speaking', 'listening');
+
+        // 新しい状態を設定
+        switch (state) {
+            case 'speaking':
+                mouth.classList.add('speaking');
+                break;
+            case 'listening':
+                mouth.classList.add('listening');
+                break;
+            case 'idle':
+            default:
+                // デフォルトの口の形（何もしない）
+                break;
+        }
     }
 
     // ステータス管理
@@ -117,10 +140,12 @@ class UIManager {
         if (!micButton) return;
 
         if (isRecording) {
+            this.setFaceState('listening');
             micButton.classList.add('recording');
             micButton.title = '録音を停止';
             micButton.textContent = '⏹️';
         } else {
+            this.setFaceState('idle');
             micButton.classList.remove('recording');
             micButton.title = 'マイクのON/OFF';
             micButton.textContent = '🎤';
@@ -130,25 +155,13 @@ class UIManager {
     setSpeakingState(isSpeaking) {
         if (isSpeaking) {
             this.setStatus('speaking', '話しています...');
+            this.setFaceState('speaking');
         } else {
             this.setStatus('ready', 'システム準備完了');
+            this.setFaceState('idle');
         }
     }
 
-    setSpeakerState(isEnabled) {
-        const speakerButton = this.elements.speakerButton;
-        if (!speakerButton) return;
-
-        if (isEnabled) {
-            speakerButton.classList.remove('muted');
-            speakerButton.textContent = '🔊';
-            speakerButton.title = 'スピーカーのON/OFF';
-        } else {
-            speakerButton.classList.add('muted');
-            speakerButton.textContent = '🔇';
-            speakerButton.title = 'スピーカーがミュートされています';
-        }
-    }
 
     // メッセージ管理
     addMessage(role, content, metadata = {}) {
@@ -307,12 +320,16 @@ class UIManager {
         this.isSettingsOpen = !this.isSettingsOpen;
 
         const panel = this.elements.settingsPanel;
+        const button = document.getElementById('settingsButton');
+
         if (!panel) return;
 
         if (this.isSettingsOpen) {
             panel.classList.add('open');
+            if (button) button.classList.add('active');
         } else {
             panel.classList.remove('open');
+            if (button) button.classList.remove('active');
         }
 
         console.log('Settings panel toggled:', this.isSettingsOpen);
@@ -323,8 +340,13 @@ class UIManager {
 
         this.isSettingsOpen = false;
         const panel = this.elements.settingsPanel;
+        const button = document.getElementById('settingsButton');
+
         if (panel) {
             panel.classList.remove('open');
+        }
+        if (button) {
+            button.classList.remove('active');
         }
     }
 

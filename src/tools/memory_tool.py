@@ -258,6 +258,72 @@ class MemoryTool(Tool):
         except Exception as e:
             logger.error(f"Failed to persist memory: {e}")
 
+    async def store_personal_info(self, personal_info: Dict[str, Any]):
+        """個人情報を保存"""
+        logger.info(f"Storing personal information: {personal_info}")
+
+        for key, value in personal_info.items():
+            if value:  # 空の値は保存しない
+                memory_entry = {
+                    "value": str(value),
+                    "timestamp": datetime.now().isoformat(),
+                    "category": "personal_info",
+                    "updated_count": self.memory_storage.get(f"personal_{key}", {}).get("updated_count", 0) + 1
+                }
+
+                self.memory_storage[f"personal_{key}"] = memory_entry
+
+        # ファイルに保存
+        await self._persist_memory()
+        logger.info("Personal information stored successfully")
+
+    async def get_personal_info(self) -> Dict[str, str]:
+        """保存された個人情報を取得"""
+        personal_info = {}
+
+        for key, entry in self.memory_storage.items():
+            if key.startswith("personal_") and entry.get("category") == "personal_info":
+                # personal_ プレフィックスを除去してキー名を取得
+                clean_key = key[9:]  # "personal_"を除去
+                personal_info[clean_key] = entry["value"]
+
+        return personal_info
+
+    def format_personal_context(self) -> str:
+        """個人情報をLLMのコンテキスト用に整形"""
+        try:
+            # 同期的に個人情報を取得
+            personal_info = {}
+            for key, entry in self.memory_storage.items():
+                if key.startswith("personal_") and entry.get("category") == "personal_info":
+                    clean_key = key[9:]  # "personal_"を除去
+                    personal_info[clean_key] = entry["value"]
+
+            if not personal_info:
+                return ""
+
+            context_parts = ["=== ユーザーの個人情報 ==="]
+
+            if "name" in personal_info:
+                context_parts.append(f"名前: {personal_info['name']}")
+            if "age" in personal_info:
+                context_parts.append(f"年齢: {personal_info['age']}歳")
+            if "location" in personal_info:
+                context_parts.append(f"居住地: {personal_info['location']}")
+            if "occupation" in personal_info:
+                context_parts.append(f"職業: {personal_info['occupation']}")
+            if "hobbies" in personal_info:
+                context_parts.append(f"趣味・興味: {personal_info['hobbies']}")
+
+            context_parts.append("この情報を参考に、パーソナライズされた応答をしてください。")
+            context_parts.append("=== ここまで個人情報 ===\n")
+
+            return "\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to format personal context: {e}")
+            return ""
+
     async def _cleanup_impl(self):
         """クリーンアップ時にメモリを保存"""
         await self._persist_memory()

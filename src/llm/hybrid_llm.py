@@ -448,7 +448,8 @@ class HybridLLM:
         text: str,
         context: List[Dict],
         memories: List[Dict],
-        available_tools: List[Dict]
+        available_tools: List[Dict],
+        memory_tool=None
     ) -> Dict[str, Any]:
         """
         ツール使用を含む複雑な処理
@@ -467,7 +468,7 @@ class HybridLLM:
 
         try:
             # システムプロンプトの構築
-            system_prompt = self._build_system_prompt(available_tools, memories)
+            system_prompt = self._build_system_prompt(available_tools, memories, memory_tool)
 
             # メッセージの構築
             messages = [
@@ -500,14 +501,22 @@ class HybridLLM:
                 "error": str(e)
             }
 
-    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict]) -> str:
+    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None) -> str:
         """システムプロンプトを構築"""
         prompt_parts = [
-            "あなたは簡潔で効率的な音声AIアシスタントです。",
-            "ユーザーの質問に1-2文で端的に答えてください。",
-            "長い説明や詳細な解説は避け、必要な情報のみを提供してください。",
-            "自然で親しみやすい口調を保ちつつ、回答は短く簡潔にしてください。"
+            "あなたは簡潔な音声AIアシスタントです。",
+            "質問には最低限の必要な情報のみで答えてください。",
+            "例: 2+5=? → 7です。",
+            "例: 東京都で人口最多の区は? → 世田谷区で91万人です。",
+            "長い説明や前置きは一切不要です。答えのみ述べてください。",
         ]
+
+        # 個人情報があれば追加
+        if memory_tool:
+            personal_context = memory_tool.format_personal_context()
+            if personal_context:
+                prompt_parts.append("")  # 空行を追加
+                prompt_parts.append(personal_context)
 
         # 利用可能なツール情報を追加
         if available_tools:

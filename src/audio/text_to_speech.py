@@ -44,7 +44,7 @@ class TextToSpeech:
         self.is_initialized = False
         self.audio_cache = {}  # 音声キャッシュ
         self.config = {
-            "provider": "elevenlabs",  # elevenlabs, gtts, browser
+            "provider": "openai",  # openai, gtts, browser
             "voice_id": "default",
             "model": "eleven_monolingual_v1",
             "stability": 0.5,

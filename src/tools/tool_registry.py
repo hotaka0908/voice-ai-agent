@@ -256,6 +256,18 @@ class ToolRegistry:
 
         return matching_tools
 
+    def get_tool(self, tool_name: str) -> Optional[Tool]:
+        """
+        ツールインスタンスを取得
+
+        Args:
+            tool_name: ツール名
+
+        Returns:
+            ツールインスタンス、見つからない場合はNone
+        """
+        return self.tools.get(tool_name)
+
     async def validate_tool_access(self, tool_name: str, user_context: Dict[str, Any]) -> bool:
         """
         ツールアクセスの権限確認

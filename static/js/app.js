@@ -30,7 +30,7 @@ class VoiceAgent {
             this.setupEventListeners();
 
             this.isInitialized = true;
-            this.uiManager.setStatus('ready', 'システム準備完了');
+            this.uiManager.setStatus('ready', '話しかけてね');
             console.log('Voice Agent initialized successfully');
 
         } catch (error) {
@@ -64,15 +64,6 @@ class VoiceAgent {
             this.uiManager.toggleSettings();
         });
 
-        // 会話リセットボタン
-        document.getElementById('resetConversation').addEventListener('click', () => {
-            this.resetConversation();
-        });
-
-        // デバッグモード切り替え
-        document.getElementById('debugMode').addEventListener('change', (e) => {
-            this.toggleDebugMode(e.target.checked);
-        });
 
         // 各種設定の変更
         this.setupSettingsListeners();
@@ -112,27 +103,6 @@ class VoiceAgent {
     }
 
     setupSettingsListeners() {
-        // STTプロバイダー変更
-        document.getElementById('sttProvider').addEventListener('change', (e) => {
-            this.updateSetting('stt_provider', e.target.value);
-        });
-
-        // TTSプロバイダー変更
-        document.getElementById('ttsProvider').addEventListener('change', (e) => {
-            this.updateSetting('tts_provider', e.target.value);
-        });
-
-        // LLMプロバイダー変更
-        document.getElementById('llmProvider').addEventListener('change', (e) => {
-            this.updateSetting('llm_provider', e.target.value);
-        });
-
-        // 音声感度変更
-        document.getElementById('sensitivity').addEventListener('input', (e) => {
-            document.getElementById('sensitivityValue').textContent = e.target.value;
-            this.updateSetting('sensitivity', parseInt(e.target.value));
-        });
-
         // 個人情報保存ボタン
         document.getElementById('savePersonalInfo').addEventListener('click', () => {
             this.savePersonalInfo();
@@ -321,7 +291,7 @@ class VoiceAgent {
                 this.displayToolResults(data.tool_results);
             }
 
-            this.uiManager.setStatus('ready', 'システム準備完了');
+            this.uiManager.setStatus('ready', '話しかけてね');
 
         } catch (error) {
             console.error('Failed to handle response:', error);
@@ -386,28 +356,6 @@ class VoiceAgent {
         }
     }
 
-    toggleDebugMode(enabled) {
-        if (enabled) {
-            document.getElementById('textInputArea').style.display = 'flex';
-            console.log('Debug mode enabled');
-        } else {
-            document.getElementById('textInputArea').style.display = 'none';
-            console.log('Debug mode disabled');
-        }
-    }
-
-    async resetConversation() {
-        if (confirm('会話履歴をリセットしますか？')) {
-            try {
-                await this.websocketManager.resetConversation();
-                this.uiManager.clearConversation();
-                this.uiManager.addMessage('assistant', 'こんにちは！会話をリセットしました。何かお手伝いできることはありますか？');
-            } catch (error) {
-                console.error('Failed to reset conversation:', error);
-                this.uiManager.showError('会話のリセットに失敗しました');
-            }
-        }
-    }
 
     async savePersonalInfo() {
         try {

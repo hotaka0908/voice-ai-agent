@@ -48,10 +48,7 @@ body {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
-    background: linear-gradient(135deg, var(--primary-color), #8b5cf6);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #000000;
 }
 
 .subtitle {
@@ -609,4 +606,116 @@ body {
 
 .error-toast.show, .success-toast.show {
     transform: translateX(0);
+}
+
+/* シンプルな個人情報UI（白・黒・青） */
+.profile-section {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.profile-header {
+    background: #f3f4f6;
+    padding: 20px 24px;
+    text-align: center;
+    color: #374151;
+}
+
+.profile-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.profile-form {
+    padding: 32px 24px 24px;
+}
+
+.input-group {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.input-group.half-width {
+    flex: 1;
+}
+
+.input-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.modern-input, .modern-textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 16px;
+    background: white;
+    transition: all 0.15s ease;
+    outline: none;
+    font-family: inherit;
+    resize: none;
+    color: #111827;
+}
+
+.modern-input:focus, .modern-textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.modern-input::placeholder, .modern-textarea::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
+}
+
+
+.modern-save-btn {
+    width: 100%;
+    background: #000000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.modern-save-btn:hover {
+    background: #374151;
+    transform: translateY(-1px);
+}
+
+.modern-save-btn:active {
+    transform: translateY(0);
+    background: #111827;
+}
+
+
+
+/* レスポンシブ対応 */
+@media (max-width: 480px) {
+    .input-row {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .profile-form {
+        padding: 24px 16px 16px;
+    }
+
+    .profile-header {
+        padding: 20px 16px;
+    }
 }

@@ -226,11 +226,11 @@ class AudioManager {
             this.audioChunks = [];
             this.lastFlushAt = now;
 
-            // WAV化して送出
+            // WAV化（送出は録音完了時のみ）
             const audioBuffer = await this.convertToWAV(segmentBlob);
             if (audioBuffer && audioBuffer.byteLength > 0) {
-                this.emit('audioData', audioBuffer);
-                console.log('Flushed audio segment:', audioBuffer.byteLength, 'bytes');
+                // 録音中のリアルタイム送信は無効化（重複送信防止）
+                console.log('Processed audio segment:', audioBuffer.byteLength, 'bytes (not sent)');
             }
         } catch (e) {
             console.error('Failed to flush segment:', e);

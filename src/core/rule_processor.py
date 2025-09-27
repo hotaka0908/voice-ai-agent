@@ -141,7 +141,7 @@ class RuleProcessor:
         self.initialized = True
         logger.info("Rule Processor initialized successfully")
 
-    async def process_input(self, user_input: str, context: Dict = None) -> Optional[Dict[str, Any]]:
+    async def process_input(self, user_input: str, context: Dict = None, memory_tool=None) -> Optional[Dict[str, Any]]:
         """
         ユーザー入力をルールベース処理
 
@@ -174,11 +174,15 @@ class RuleProcessor:
         try:
             # アクションがある場合は実行
             if "action" in matched_rule:
-                response_text = await self._execute_action(matched_rule["action"], user_input_clean)
+                response_text = await self._execute_action(matched_rule["action"], user_input_clean, memory_tool)
             else:
-                # 固定応答からランダム選択
+                # 固定応答からランダム選択（個人情報を考慮）
                 import random
                 response_text = random.choice(matched_rule["responses"])
+
+                # 個人情報がある場合はパーソナライズ
+                if memory_tool:
+                    response_text = await self._personalize_response(response_text, matched_rule["name"], memory_tool)
 
             return {
                 "rule_name": matched_rule["name"],
@@ -191,7 +195,7 @@ class RuleProcessor:
             logger.error(f"Rule processing error: {e}")
             return None
 
-    async def _execute_action(self, action: str, user_input: str) -> str:
+    async def _execute_action(self, action: str, user_input: str, memory_tool=None) -> str:
         """アクション実行"""
         if action == "get_current_time":
             now = datetime.now()
@@ -245,6 +249,37 @@ class RuleProcessor:
             logger.error(f"Calculation error: {e}")
 
         return "計算できませんでした"
+
+    async def _personalize_response(self, response: str, rule_name: str, memory_tool) -> str:
+        """個人情報に基づいて応答をパーソナライズ"""
+        if not memory_tool:
+            return response
+
+        try:
+            personal_info = await memory_tool.get_personal_info()
+            if not personal_info:
+                return response
+
+            # 名前がある場合は挨拶に名前を追加
+            if rule_name in ["greeting_morning", "greeting_general"] and "name" in personal_info:
+                if "おはよう" in response:
+                    return f"おはようございます、{personal_info['name']}さん！今日も一日頑張りましょう！"
+                elif "こんにちは" in response:
+                    return f"こんにちは、{personal_info['name']}さん！今日はいかがお過ごしですか？"
+
+            # お礼応答に名前を追加
+            elif rule_name == "thanks" and "name" in personal_info:
+                return f"どういたしまして、{personal_info['name']}さん。ではまた後ほど。"
+
+            # 趣味に関連した応答
+            elif rule_name == "feeling_good" and "hobbies" in personal_info:
+                return f"それは良かったです！{personal_info['hobbies']}の時間でも作って、さらに楽しい時間を過ごしてくださいね。"
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to personalize response: {e}")
+            return response
 
     def add_rule(self, rule: Dict[str, Any]):
         """ルールを追加"""

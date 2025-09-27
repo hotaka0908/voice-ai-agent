@@ -504,19 +504,21 @@ class HybridLLM:
     def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None) -> str:
         """システムプロンプトを構築"""
         prompt_parts = [
-            "あなたは簡潔な音声AIアシスタントです。",
-            "質問には最低限の必要な情報のみで答えてください。",
-            "例: 2+5=? → 7です。",
-            "例: 東京都で人口最多の区は? → 世田谷区で91万人です。",
-            "長い説明や前置きは一切不要です。答えのみ述べてください。",
+            "あなたはパーソナライズされた音声AIアシスタントです。",
+            "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
+            "質問には必要な情報を含めつつ、親しみやすく答えてください。",
         ]
 
-        # 個人情報があれば追加
+        # 個人情報があれば追加し、積極的に活用
         if memory_tool:
             personal_context = memory_tool.format_personal_context()
             if personal_context:
                 prompt_parts.append("")  # 空行を追加
                 prompt_parts.append(personal_context)
+                prompt_parts.append("\n重要: 上記の個人情報を積極的に活用してパーソナライズされた応答をしてください。")
+                prompt_parts.append("例えば、趣味に関連した話題、年齢に適した表現、居住地の特色などを考慮してください。")
+        else:
+            prompt_parts.append("個人情報が登録されていないため、一般的な応答をしてください。")
 
         # 利用可能なツール情報を追加
         if available_tools:
@@ -531,9 +533,11 @@ class HybridLLM:
 
         # 関連する記憶があれば追加
         if memories:
-            prompt_parts.append("\n関連する過去の情報:")
+            prompt_parts.append("\n=== 関連する過去の情報 ===")
             for memory in memories[:3]:  # 最新3件まで
                 prompt_parts.append(f"- {memory.get('content', '')}")
+            prompt_parts.append("=== ここまで過去の情報 ===")
+            prompt_parts.append("重要: 上記の過去の情報を参考にして、継続性のある会話を心がけてください。")
 
         return "\n".join(prompt_parts)
 

@@ -119,9 +119,13 @@ class VoiceAgent:
             await self.context.add_user_message(text)
 
             # 2. ルールベース処理をまず試行
+            # メモリツールを取得
+            memory_tool = self.tools.get_tool("memory")
+
             rule_response = await self.rule_processor.process_input(
                 text,
-                context=self.context.get_context()
+                context=self.context.get_context(),
+                memory_tool=memory_tool
             )
 
             # ルールにマッチした場合はそのまま返す
@@ -150,8 +154,7 @@ class VoiceAgent:
             relevant_memories = await self.memory.search_relevant(text)
 
             # 4. LLMで意図理解とツール選択
-            # メモリツールを取得
-            memory_tool = self.tools.get_tool("memory")
+            # メモリツールは既に取得済み
 
             llm_response = await self.llm.process_with_tools(
                 text=text,

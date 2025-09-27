@@ -157,7 +157,7 @@ class UIManager {
             this.setStatus('speaking', '話しています...');
             this.setFaceState('speaking');
         } else {
-            this.setStatus('ready', 'システム準備完了');
+            this.setStatus('ready', '話しかけてね');
             this.setFaceState('idle');
         }
     }

@@ -58,6 +58,10 @@ app = FastAPI(
 )
 
 # 静的ファイルとテンプレートの設定
+# 起動時にデータディレクトリが存在しないとStaticFilesのマウントで落ちるため、先に作成しておく
+os.makedirs("data/audio", exist_ok=True)
+os.makedirs("data/memory", exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/data", StaticFiles(directory="data"), name="data")
 templates = Jinja2Templates(directory="templates")

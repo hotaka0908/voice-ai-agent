@@ -128,7 +128,7 @@ class VoiceAgent:
                 memory_tool=memory_tool
             )
 
-            # ルールにマッチした場合はそのまま返す
+            # ルールにマッチし、即時応答がある場合はそのまま返す
             if rule_response and rule_response.get("is_final"):
                 final_response = rule_response.get("response", "")
 
@@ -149,6 +149,34 @@ class VoiceAgent:
                     "timestamp": await self._get_current_timestamp()
                 }
 
+            # ルールにマッチし、ツール提案がある場合は先に実行（Gmail等）
+            if rule_response and not rule_response.get("is_final") and rule_response.get("tool_calls"):
+                tool_results = await self._execute_tools(rule_response["tool_calls"])
+
+                # Gmailツールの結果からメールIDを抽出してコンテキストに保存
+                await self._extract_and_store_email_ids(tool_results)
+
+                # 単純にツール結果を応答として返す（フォーマット済み文字列想定）
+                combined_texts = []
+                for name, result in tool_results.items():
+                    if isinstance(result, str):
+                        combined_texts.append(result)
+                    else:
+                        combined_texts.append(str(result))
+                final_response = "\n\n".join([t for t in combined_texts if t]) or "処理が完了しました。"
+
+                await self.context.add_assistant_message(final_response)
+                await self.memory.store_interaction(text, final_response)
+                audio_url = await self.tts.synthesize(final_response)
+
+                return {
+                    "text": final_response,
+                    "audio_url": audio_url,
+                    "tool_results": rule_response.get("tool_calls", []),
+                    "rule_used": rule_response.get("rule_name"),
+                    "timestamp": await self._get_current_timestamp()
+                }
+
             # 3. ルールにマッチしなかった場合はAI処理
             # 記憶からの関連情報取得
             relevant_memories = await self.memory.search_relevant(text)
@@ -161,12 +189,19 @@ class VoiceAgent:
                 context=self.context.get_context(),
                 memories=relevant_memories,
                 available_tools=self.tools.get_available_tools(),
-                memory_tool=memory_tool
+                memory_tool=memory_tool,
+                context_manager=self.context
             )
 
             # 5. ツールの実行（必要な場合）
+            logger.debug(f"LLM response tool_calls: {llm_response.get('tool_calls')}")
             if llm_response.get("tool_calls"):
+                logger.info(f"Executing {len(llm_response['tool_calls'])} tools")
                 tool_results = await self._execute_tools(llm_response["tool_calls"])
+                logger.debug(f"Tool execution results: {tool_results}")
+
+                # Gmailツールの結果からメールIDを抽出してコンテキストに保存
+                await self._extract_and_store_email_ids(tool_results)
 
                 # ツール結果を含めて再度LLM処理
                 final_response = await self.llm.generate_final_response(
@@ -175,6 +210,7 @@ class VoiceAgent:
                     context=self.context.get_context()
                 )
             else:
+                logger.warning("No tool calls found in LLM response - AI may generate fake content")
                 final_response = llm_response.get("response", "")
 
             # 6. 応答をコンテキストに追加
@@ -205,11 +241,31 @@ class VoiceAgent:
             tool_name = tool_call.get("name")
             tool_params = tool_call.get("parameters", {})
 
+            logger.debug(f"Processing tool call: {tool_name} with params: {tool_params}")
+
+            # Gmailツールのプレースホルダー置換処理
+            if tool_name == "gmail" and tool_params.get("message_id"):
+                logger.info(f"Gmail tool detected with message_id: {tool_params.get('message_id')}")
+                original_params = tool_params.copy()
+                tool_params = await self._replace_placeholder_email_id(tool_params)
+                logger.info(f"Placeholder replacement: {original_params} -> {tool_params}")
+
             try:
-                logger.info(f"Executing tool: {tool_name}")
+                logger.info(f"Executing tool: {tool_name} with final params: {tool_params}")
                 result = await self.tools.execute_tool(tool_name, tool_params)
-                results[tool_name] = result
-                logger.debug(f"Tool {tool_name} result: {result}")
+
+                # ToolResultオブジェクトの場合は結果を抽出
+                if hasattr(result, 'result'):
+                    results[tool_name] = result.result
+                    logger.debug(f"Tool {tool_name} result: {result.result}")
+
+                    # メタデータも保存（ID抽出用）
+                    if hasattr(result, 'metadata') and result.metadata:
+                        results[f"{tool_name}_metadata"] = result.metadata
+                        logger.debug(f"Tool {tool_name} metadata: {result.metadata}")
+                else:
+                    results[tool_name] = result
+                    logger.debug(f"Tool {tool_name} result: {result}")
 
             except Exception as e:
                 logger.error(f"Tool {tool_name} execution failed: {e}")
@@ -229,7 +285,7 @@ class VoiceAgent:
                 "tts": await self.tts.get_status(),
                 "llm": await self.llm.get_status(),
                 "memory": await self.memory.get_status(),
-                "tools": self.tools.get_status()
+                "tools": await self.tools.get_status()
             }
         }
 
@@ -270,6 +326,74 @@ class VoiceAgent:
 
         self.is_initialized = False
         logger.info("Voice Agent cleanup completed")
+
+    async def _extract_and_store_email_ids(self, tool_results: Dict[str, Any]):
+        """Gmailツール結果からメールIDを抽出してコンテキストに保存"""
+        try:
+            gmail_result = tool_results.get("gmail")
+            gmail_metadata = tool_results.get("gmail_metadata")
+
+            logger.debug(f"Gmail tool result for ID extraction: {gmail_result}")
+            logger.debug(f"Gmail metadata: {gmail_metadata}")
+            logger.debug(f"Tool results keys: {list(tool_results.keys())}")
+
+            # まず、メタデータからメールIDを確認
+            if gmail_metadata and isinstance(gmail_metadata, dict):
+                latest_email_id = gmail_metadata.get("latest_email_id")
+                if latest_email_id:
+                    self.context.set_latest_email_id(latest_email_id)
+                    logger.info(f"✅ Stored latest email ID from metadata: {latest_email_id}")
+                    return
+
+            # メタデータから取得できない場合は従来の方法
+            if not gmail_result or not isinstance(gmail_result, str):
+                logger.debug(f"Gmail result is not a string or is empty. Type: {type(gmail_result)}")
+                return
+
+            # メール一覧結果からIDを抽出
+            import re
+            id_pattern = r'ID:\s*([a-zA-Z0-9]+)'
+            matches = re.findall(id_pattern, gmail_result)
+            logger.debug(f"Regex matches found: {matches}")
+
+            if matches:
+                # 最初のメールIDを保存（最新のメール）
+                email_id = matches[0]
+                self.context.set_latest_email_id(email_id)
+                logger.info(f"✅ Stored latest email ID: {email_id}")
+            else:
+                logger.warning(f"❌ No email IDs found in Gmail result: {gmail_result[:200]}")
+
+        except Exception as e:
+            logger.error(f"Failed to extract email ID: {e}")
+
+    async def _replace_placeholder_email_id(self, tool_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GmailツールのプレースホルダーメールIDを実際のIDに置換"""
+        logger.info(f"_replace_placeholder_email_id called with params: {tool_params}")
+
+        placeholder_patterns = ["メールID", "メッセージID", "email_id", "message_id_placeholder"]
+
+        # パラメータをコピーして変更
+        updated_params = tool_params.copy()
+        message_id = updated_params.get("message_id")
+
+        logger.info(f"Checking message_id: '{message_id}' against patterns: {placeholder_patterns}")
+
+        if message_id in placeholder_patterns:
+            # コンテキストから最新のメールIDを取得
+            actual_email_id = self.context.get_latest_email_id()
+            logger.info(f"Found placeholder '{message_id}', available email ID from context: {actual_email_id}")
+
+            if actual_email_id:
+                updated_params["message_id"] = actual_email_id
+                logger.info(f"✅ Replaced placeholder '{message_id}' with actual email ID: {actual_email_id}")
+            else:
+                logger.warning(f"❌ No stored email ID found to replace placeholder '{message_id}'")
+        else:
+            logger.debug(f"ℹ️  Message ID '{message_id}' is not a placeholder, using as-is")
+
+        logger.info(f"Final updated params: {updated_params}")
+        return updated_params
 
     async def _get_current_timestamp(self) -> str:
         """現在のタイムスタンプをISO形式で返す"""

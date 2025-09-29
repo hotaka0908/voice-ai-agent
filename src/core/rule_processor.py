@@ -123,6 +123,17 @@ class RuleProcessor:
                 "priority": 15
             },
 
+            # Gmail関連（最高優先度）
+            {
+                "name": "gmail_trigger",
+                "patterns": [r"メール", r"gmail", r"ジーメール", r"Gmailについて", r"メールチェック",
+                           r"受信.*メール", r"送信.*メール", r"メール.*確認", r"メール.*読", r"メール.*送",
+                           r"返信", r"メール.*返信", r"返事", r"メール.*返事", r"reply"],
+                "responses": [],
+                "action": "use_gmail_tool",
+                "priority": 25  # 最高優先度
+            },
+
             # 終了・さようなら
             {
                 "name": "goodbye",
@@ -174,7 +185,19 @@ class RuleProcessor:
         try:
             # アクションがある場合は実行
             if "action" in matched_rule:
+                # Gmailキーワードのときはツール提案を返す（LLMに依存せず実行可能にする）
+                if matched_rule["action"] == "use_gmail_tool":
+                    tool_calls = self._suggest_gmail_tool_calls(user_input_clean)
+                    return {
+                        "rule_name": matched_rule["name"],
+                        "response": "",
+                        "priority": matched_rule["priority"],
+                        "is_final": False,
+                        "tool_calls": tool_calls,
+                    }
+
                 response_text = await self._execute_action(matched_rule["action"], user_input_clean, memory_tool)
+
             else:
                 # 固定応答からランダム選択（個人情報を考慮）
                 import random
@@ -195,6 +218,48 @@ class RuleProcessor:
             logger.error(f"Rule processing error: {e}")
             return None
 
+    def _suggest_gmail_tool_calls(self, user_input: str) -> List[Dict[str, Any]]:
+        """Gmail関連入力に対して適切なツール呼び出しを提案"""
+        # 返信関連のキーワード
+        reply_keywords = ["返信", "返事", "reply"]
+        # 未読や読み取り関連のキーワード
+        read_keywords = ["未読", "読", "内容", "確認", "開いて", "チェック"]
+        list_keywords = ["一覧", "リスト", "何件", "最新", "件数"]
+
+        # 返信要求の場合は最新メールを読んで返信準備
+        if any(k in user_input for k in reply_keywords):
+            # 返信内容を抽出
+            reply_content = self._extract_reply_content(user_input)
+
+            # 返信要求の場合は2段階処理：メール一覧取得 → 返信実行
+            return [
+                {
+                    "name": "gmail",
+                    "parameters": {"action": "list", "max_results": 1}
+                },
+                {
+                    "name": "gmail",
+                    "parameters": {
+                        "action": "reply",
+                        "message_id": "メールID",  # プレースホルダー
+                        "body": reply_content or "了解しました。"
+                    }
+                }
+            ]
+
+        if any(k in user_input for k in read_keywords):
+            # 未読を優先して最新1件を読む（未読が無ければ最新）
+            return [{
+                "name": "gmail",
+                "parameters": {"action": "read", "message_id": None, "query": "is:unread"}
+            }]
+
+        # それ以外は一覧（最新5件）
+        return [{
+            "name": "gmail",
+            "parameters": {"action": "list", "max_results": 5}
+        }]
+
     async def _execute_action(self, action: str, user_input: str, memory_tool=None) -> str:
         """アクション実行"""
         if action == "get_current_time":
@@ -209,7 +274,45 @@ class RuleProcessor:
         elif action == "calculate":
             return await self._simple_calculate(user_input)
 
+        elif action == "use_gmail_tool":
+            return None  # ルールベース処理をスキップしてAI処理に移行
+
         return "処理できませんでした"
+
+    def _extract_reply_content(self, user_input: str) -> str:
+        """返信内容を抽出"""
+        import re
+
+        # 返信内容のパターンを検索
+        patterns = [
+            r'(.+?)って返信',
+            r'(.+?)と返信',
+            r'(.+?)て返信',
+            r'(.+?)って返事',
+            r'(.+?)と返事',
+            r'(.+?)て返事'
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, user_input)
+            if match:
+                content = match.group(1).strip()
+                # 不要な部分を除去
+                content = re.sub(r'^(メールに|最新のメールに|)', '', content)
+                if content:
+                    return content
+
+        # パターンにマッチしない場合は全体をチェック
+        if "返信" in user_input or "返事" in user_input:
+            # 「返信して」の前の部分を抽出
+            parts = re.split(r'(って|と|て)?(返信|返事)', user_input)
+            if parts and parts[0].strip():
+                content = parts[0].strip()
+                content = re.sub(r'^(メールに|最新のメールに|)', '', content)
+                if content and content not in ["届いてる", "わかった", "了解"]:
+                    return content
+
+        return "了解しました。"
 
     async def _simple_calculate(self, user_input: str) -> str:
         """簡単な計算処理"""

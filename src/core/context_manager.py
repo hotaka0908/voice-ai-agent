@@ -38,6 +38,7 @@ class ContextManager:
         self.session_start = datetime.now()
         self.user_preferences: Dict[str, Any] = {}
         self.current_topic: Optional[str] = None
+        self.latest_email_id: Optional[str] = None  # 最新のメールIDを保存
         self.is_initialized = False
 
     async def initialize(self):
@@ -210,10 +211,25 @@ class ContextManager:
         self.session_start = datetime.now()
         logger.info("Context reset completed")
 
+    def set_latest_email_id(self, email_id: str):
+        """最新のメールIDを設定"""
+        self.latest_email_id = email_id
+        logger.debug(f"Latest email ID set: {email_id}")
+
+    def get_latest_email_id(self) -> Optional[str]:
+        """最新のメールIDを取得"""
+        return self.latest_email_id
+
+    def clear_latest_email_id(self):
+        """最新のメールIDをクリア"""
+        self.latest_email_id = None
+        logger.debug("Latest email ID cleared")
+
     async def cleanup(self):
         """クリーンアップ処理"""
         logger.info("Cleaning up Context Manager...")
         # 必要に応じてコンテキストを保存
         self.messages.clear()
         self.user_preferences.clear()
+        self.latest_email_id = None
         self.is_initialized = False

@@ -24,7 +24,8 @@ class ToolSchema(BaseModel):
     """ツールのスキーマ定義"""
     name: str
     description: str
-    parameters: List[ToolParameter] = []
+    # 可変デフォルトはField(default_factory=...)で安全に
+    parameters: List[ToolParameter] = Field(default_factory=list)
 
 
 class ToolResult(BaseModel):

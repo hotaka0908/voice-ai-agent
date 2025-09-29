@@ -306,9 +306,17 @@ class OpenAIProvider(LLMProvider):
             raise RuntimeError("OpenAI provider not available")
 
         try:
+            # OpenAI API は role/content 以外のキーを受け取らないためサニタイズ
+            sanitized_messages = []
+            for msg in messages:
+                role = msg.get("role")
+                content = msg.get("content")
+                if role is not None and content is not None:
+                    sanitized_messages.append({"role": role, "content": content})
+
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=sanitized_messages,
                 max_tokens=kwargs.get("max_tokens", 1000),
                 temperature=kwargs.get("temperature", 0.7),
                 tools=kwargs.get("tools"),
@@ -449,7 +457,8 @@ class HybridLLM:
         context: List[Dict],
         memories: List[Dict],
         available_tools: List[Dict],
-        memory_tool=None
+        memory_tool=None,
+        context_manager=None
     ) -> Dict[str, Any]:
         """
         ツール使用を含む複雑な処理
@@ -468,7 +477,7 @@ class HybridLLM:
 
         try:
             # システムプロンプトの構築
-            system_prompt = self._build_system_prompt(available_tools, memories, memory_tool)
+            system_prompt = self._build_system_prompt(available_tools, memories, memory_tool, context, context_manager)
 
             # メッセージの構築
             messages = [
@@ -484,7 +493,40 @@ class HybridLLM:
             response = await self._generate_with_fallback(messages, tools=openai_tools_schema)
 
             # ツール呼び出しの解析（providerがtool_callsを返す場合はそれを優先）
-            tool_calls = response.get("tool_calls") or self._parse_tool_calls(response.get("content", ""))
+            provider_tool_calls = response.get("tool_calls") or []
+            parsed_tool_calls = self._parse_tool_calls(response.get("content", ""))
+
+            tool_calls = provider_tool_calls + parsed_tool_calls
+
+            # プレースホルダーメールIDを実際のIDに置換
+            latest_email_id = None
+
+            # 1. コンテキストマネージャーから取得
+            if context_manager and hasattr(context_manager, 'get_latest_email_id'):
+                latest_email_id = context_manager.get_latest_email_id()
+
+            # 2. コンテキストメッセージからも検索（フォールバック）
+            if not latest_email_id and context:
+                for ctx_item in reversed(context):
+                    if isinstance(ctx_item, dict) and 'content' in ctx_item:
+                        content = ctx_item['content']
+                        if 'ID:' in content:
+                            import re
+                            id_match = re.search(r'ID:\s*([a-zA-Z0-9]+)', content)
+                            if id_match:
+                                latest_email_id = id_match.group(1)
+                                logger.info(f"Found email ID in context messages: {latest_email_id}")
+                                break
+
+            if latest_email_id:
+                tool_calls = self._replace_placeholder_email_ids(tool_calls, latest_email_id)
+                logger.info(f"Replaced placeholder email IDs with actual ID: {latest_email_id}")
+            else:
+                logger.warning("No email ID found for placeholder replacement")
+
+            logger.debug(f"Provider tool_calls: {provider_tool_calls}")
+            logger.debug(f"Parsed tool_calls: {parsed_tool_calls}")
+            logger.debug(f"Final tool_calls: {tool_calls}")
 
             return {
                 "response": response["content"],
@@ -501,12 +543,12 @@ class HybridLLM:
                 "error": str(e)
             }
 
-    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None) -> str:
+    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None, context=None, context_manager=None) -> str:
         """システムプロンプトを構築"""
         prompt_parts = [
             "あなたはパーソナライズされた音声AIアシスタントです。",
             "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
-            "質問には必要な情報を含めつつ、親しみやすく答えてください。",
+            "質問に親しみやすく端的に答えてください。",
         ]
 
         # 個人情報があれば追加し、積極的に活用
@@ -526,9 +568,63 @@ class HybridLLM:
             for tool in available_tools:
                 prompt_parts.append(f"- {tool['name']}: {tool['description']}")
 
+                # Gmailツールの場合は詳細な使用例を追加（最優先）
+                if tool['name'] == 'gmail':
+                    prompt_parts.append("  🔥 Gmailツール（最優先）:")
+                    prompt_parts.append("  メール、gmail、ジーメールという言葉が出た場合は必ずこのツールを使用してください")
+                    prompt_parts.append("  - 最新メール取得: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"max_results\": 1}}")
+                    prompt_parts.append("  - メール詳細読み取り: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"read\", \"message_id\": \"メールID\"}}")
+                    prompt_parts.append("  - 未読メール取得: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"query\": \"is:unread\"}}")
+                    prompt_parts.append("  - メール返信: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"reply\", \"message_id\": \"メールID\", \"body\": \"返信本文\"}}")
+                    prompt_parts.append("  ")
+                    prompt_parts.append("  🔥 返信処理の重要な指示:")
+                    prompt_parts.append("  - 「〇〇と返信して」「〇〇て返信」という要求があった場合:")
+
+                    # コンテキストから最新のメールIDを取得
+                    latest_email_id = None
+
+                    # 1. コンテキストマネージャーから最新メールIDを取得（最優先）
+                    logger.info(f"Checking context_manager: {context_manager}")
+                    logger.info(f"Has get_latest_email_id method: {hasattr(context_manager, 'get_latest_email_id') if context_manager else False}")
+
+                    if context_manager and hasattr(context_manager, 'get_latest_email_id'):
+                        latest_email_id = context_manager.get_latest_email_id()
+                        logger.info(f"Retrieved email ID from context manager: {latest_email_id}")
+                        if latest_email_id:
+                            logger.info(f"Using email ID from context manager: {latest_email_id}")
+
+                    # 2. コンテキストメッセージからIDを検索（フォールバック）
+                    if not latest_email_id and hasattr(context, '__iter__') and context:
+                        logger.info(f"Searching for email ID in context messages, context length: {len(context)}")
+                        for i, ctx_item in enumerate(reversed(context)):
+                            if isinstance(ctx_item, dict) and 'content' in ctx_item:
+                                content = ctx_item['content']
+                                if 'ID:' in content:
+                                    import re
+                                    id_match = re.search(r'ID:\s*([a-zA-Z0-9]+)', content)
+                                    if id_match:
+                                        latest_email_id = id_match.group(1)
+                                        logger.info(f"Using email ID from context messages: {latest_email_id}")
+                                        break
+
+                    logger.info(f"Final email ID for system prompt: {latest_email_id}")
+
+                    if latest_email_id:
+                        prompt_parts.append(f"    最新のメールID: {latest_email_id} を使用して返信してください")
+                        prompt_parts.append(f"    例: TOOL_CALL: {{\"name\": \"gmail\", \"parameters\": {{\"action\": \"reply\", \"message_id\": \"{latest_email_id}\", \"body\": \"ユーザーが指定した返信内容\"}}}}")
+                    else:
+                        prompt_parts.append("    まず最新のメール一覧を取得してからメールIDを使って返信してください")
+                        prompt_parts.append("    例: 先にTOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"max_results\": 1}}")
+                        prompt_parts.append("    次にTOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"reply\", \"message_id\": \"取得したメールID\", \"body\": \"返信内容\"}}")
+
+                    prompt_parts.append("  ⚠️ 重要: message_idには実際に取得したメールのIDを使用してください。「メールID」「メッセージID」等のプレースホルダー文字列は絶対に使用禁止です。")
+                    prompt_parts.append("  - 返信内容はユーザーの指示に忠実に従い、適切な敬語を使用してください")
+
             prompt_parts.append(
-                "\nツールを使用する場合は、以下の形式で指示してください:\n"
-                "TOOL_CALL: {\"name\": \"ツール名\", \"parameters\": {\"パラメータ\": \"値\"}}"
+                "\n重要: ツールを使用する場合は、必ず正確な形式で指示してください。"
+                "\n実在しないアクションパラメータは使用せず、ツールの仕様に従ってください。"
+                "\nGmailの内容確認には必ずgmailツールを使用し、推測や仮定の情報は提供しないでください。"
+                "\n形式: TOOL_CALL: {\"name\": \"ツール名\", \"parameters\": {\"パラメータ\": \"値\"}}"
             )
 
         # 関連する記憶があれば追加
@@ -541,24 +637,251 @@ class HybridLLM:
 
         return "\n".join(prompt_parts)
 
+    def _replace_placeholder_email_ids(self, tool_calls: List[Dict], actual_email_id: str) -> List[Dict]:
+        """プレースホルダーメールIDを実際のIDに置換"""
+        placeholder_patterns = ["メールID", "メッセージID", "email_id", "message_id_placeholder"]
+
+        updated_tool_calls = []
+        for tool_call in tool_calls:
+            updated_call = tool_call.copy()
+
+            # Gmail関連のツールのみ処理
+            if updated_call.get("name") == "gmail" and "parameters" in updated_call:
+                params = updated_call["parameters"].copy()
+
+                # message_idパラメータをチェック
+                if "message_id" in params:
+                    current_id = params["message_id"]
+                    if current_id in placeholder_patterns:
+                        params["message_id"] = actual_email_id
+                        logger.info(f"Replaced '{current_id}' with actual email ID: {actual_email_id}")
+
+                # actionがreplyでmessage_idがないまたはプレースホルダーの場合
+                if params.get("action") == "reply" and (not params.get("message_id") or params.get("message_id") in placeholder_patterns):
+                    params["message_id"] = actual_email_id
+                    logger.info(f"Set message_id for reply action: {actual_email_id}")
+
+                updated_call["parameters"] = params
+
+            updated_tool_calls.append(updated_call)
+
+        return updated_tool_calls
+
     def _parse_tool_calls(self, content: str) -> List[Dict]:
         """応答からツール呼び出しを解析"""
         tool_calls = []
+        logger.info(f"🔍 Starting tool call parsing. Content length: {len(content)}")
+        logger.debug(f"Content to parse: '{content[:500]}...'")
 
-        # TOOL_CALL: {...} パターンを検索
+        # TOOL_CALL: {...} パターンを検索（改行対応）
         import re
-        pattern = r'TOOL_CALL:\s*({.*?})'
-        matches = re.findall(pattern, content, re.DOTALL)
 
-        for match in matches:
+        # より強力なパターンで検索 - TOOL_CALL:以降の全てを捕捉
+        pattern = r'TOOL_CALL:\s*(\{[^}]*\}?)'
+        matches = re.findall(pattern, content, re.DOTALL | re.MULTILINE)
+        logger.info(f"Found {len(matches)} pattern matches: {matches}")
+
+        # 改行で切られた場合も対応
+        multiline_pattern = r'TOOL_CALL:\s*(\{[^{}]*(?:\{[^{}]*\})*[^}]*\}?)'
+        multiline_matches = re.findall(multiline_pattern, content, re.DOTALL | re.MULTILINE)
+        logger.info(f"Found {len(multiline_matches)} multiline matches: {multiline_matches}")
+
+        # 全てのマッチを統合
+        all_matches = list(set(matches + multiline_matches))
+        matches = all_matches
+        logger.info(f"Total unique matches: {len(matches)} - {matches}")
+
+        for i, match in enumerate(matches):
+            logger.info(f"🔧 Processing match {i+1}: '{match}'")
             try:
-                tool_data = json.loads(match.strip())
+                json_str = match.strip()
+
+                # 最初に修復を試行
+                logger.debug(f"Attempting to fix JSON: '{json_str}'")
+                fixed_json = self._fix_json(json_str)
+                if fixed_json:
+                    logger.info(f"✅ JSON fixed successfully: '{fixed_json}'")
+                    tool_data = json.loads(fixed_json)
+                    if "name" in tool_data:
+                        tool_calls.append(tool_data)
+                        logger.info(f"✅ Successfully parsed fixed tool call: {tool_data}")
+                        logger.debug(f"Original: '{json_str}' -> Fixed: '{fixed_json}'")
+                        continue
+                else:
+                    logger.warning(f"❌ JSON fix failed for: '{json_str}'")
+
+                # 修復できない場合は元のJSONを試行
+                logger.debug(f"Trying original JSON: '{json_str}'")
+                tool_data = json.loads(json_str)
                 if "name" in tool_data:
                     tool_calls.append(tool_data)
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse tool call: {match}")
+                    logger.info(f"✅ Successfully parsed original tool call: {tool_data}")
 
+            except json.JSONDecodeError as e:
+                logger.warning(f"❌ Failed to parse tool call JSON: '{match}' - Error: {e}")
+
+                # 最後の手段として基本的な構造抽出を試行
+                try:
+                    logger.debug(f"Attempting component extraction for: '{match.strip()}'")
+                    extracted = self._extract_tool_call_components(match.strip())
+                    if extracted:
+                        tool_calls.append(extracted)
+                        logger.info(f"✅ Successfully extracted tool call components: {extracted}")
+                    else:
+                        logger.warning(f"❌ Component extraction returned None")
+                except Exception as extract_error:
+                    logger.error(f"❌ Tool call extraction also failed: {extract_error}")
+
+        logger.info(f"🎯 Final result: {len(tool_calls)} tool calls parsed successfully")
+        logger.debug(f"Parsed tool calls: {tool_calls}")
         return tool_calls
+
+    def _fix_json(self, json_str: str):
+        """不完全なJSONを修復"""
+        try:
+            original_str = json_str.strip()
+            logger.info(f"🔧 Attempting to fix JSON: '{original_str}'")
+
+            # まず標準的なJSON修復を試行
+            json_str = original_str
+
+            # 最後の}が抜けている場合
+            if not json_str.endswith('}'):
+                # 開いている括弧の数を数えて適切に閉じる
+                open_braces = json_str.count('{')
+                close_braces = json_str.count('}')
+                missing_braces = open_braces - close_braces
+                json_str = json_str + ('}' * missing_braces)
+                logger.info(f"🔧 Added {missing_braces} closing braces: '{json_str}'")
+
+            # 修復したJSONをテスト
+            try:
+                test_data = json.loads(json_str)
+                if "name" in test_data:
+                    logger.info(f"✅ JSON fixed successfully: '{json_str}'")
+                    return json_str
+            except json.JSONDecodeError:
+                logger.debug(f"Standard fix failed, attempting manual reconstruction...")
+
+            # 手動再構築
+            if '"name"' in original_str:
+                import re
+
+                logger.debug(f"Attempting manual reconstruction for: '{original_str}'")
+
+                # nameを抽出
+                name_match = re.search(r'"name":\s*"([^"]+)"', original_str)
+                if not name_match:
+                    logger.warning(f"Could not extract name from: '{original_str}'")
+                    return None
+
+                name = name_match.group(1)
+                logger.debug(f"Extracted name: '{name}'")
+
+                # parametersを手動抽出
+                params = {}
+
+                # actionパラメータを抽出
+                action_match = re.search(r'"action":\s*"([^"]*)"', original_str)
+                if action_match:
+                    params['action'] = action_match.group(1)
+                    logger.debug(f"Extracted action: '{params['action']}'")
+
+                # max_resultsパラメータを抽出
+                max_results_match = re.search(r'"max_results":\s*(\d+)', original_str)
+                if max_results_match:
+                    params['max_results'] = int(max_results_match.group(1))
+                    logger.debug(f"Extracted max_results: {params['max_results']}")
+
+                # message_idパラメータを抽出
+                message_id_match = re.search(r'"message_id":\s*"([^"]*)"', original_str)
+                if message_id_match:
+                    params['message_id'] = message_id_match.group(1)
+                    logger.debug(f"Extracted message_id: '{params['message_id']}'")
+
+                # bodyパラメータを抽出
+                body_match = re.search(r'"body":\s*"([^"]*)"', original_str)
+                if body_match:
+                    params['body'] = body_match.group(1)
+                    logger.debug(f"Extracted body: '{params['body']}'")
+
+                # queryパラメータを抽出
+                query_match = re.search(r'"query":\s*"([^"]*)"', original_str)
+                if query_match:
+                    params['query'] = query_match.group(1)
+                    logger.debug(f"Extracted query: '{params['query']}'")
+
+                # 再構築されたJSONを作成
+                fixed = {"name": name, "parameters": params}
+                fixed_json = json.dumps(fixed)
+                logger.info(f"✅ Manually reconstructed JSON: '{fixed_json}'")
+                return fixed_json
+
+            return None
+        except Exception as e:
+            logger.debug(f"JSON fix error: {e}")
+            return None
+
+    def _extract_parameters(self, params_str: str) -> Dict[str, Any]:
+        """不完全なparametersからキー・値を抽出"""
+        import re
+        params = {}
+
+        # "key": "value" パターンを抽出
+        string_matches = re.findall(r'"([^"]+)":\s*"([^"]+)"', params_str)
+        for key, value in string_matches:
+            params[key] = value
+
+        # "key": number パターンを抽出
+        number_matches = re.findall(r'"([^"]+)":\s*(\d+)', params_str)
+        for key, value in number_matches:
+            params[key] = int(value)
+
+        return params
+
+    def _extract_tool_call_components(self, text: str) -> Optional[Dict[str, Any]]:
+        """正規表現でツール呼び出しコンポーネントを直接抽出"""
+        import re
+
+        # nameを抽出
+        name_match = re.search(r'"name":\s*"([^"]+)"', text)
+        if not name_match:
+            return None
+
+        name = name_match.group(1)
+
+        # 基本的なparametersを抽出
+        params = {}
+
+        # action パラメータ
+        action_match = re.search(r'"action":\s*"([^"]+)"', text)
+        if action_match:
+            params['action'] = action_match.group(1)
+
+        # max_results パラメータ
+        max_results_match = re.search(r'"max_results":\s*(\d+)', text)
+        if max_results_match:
+            params['max_results'] = int(max_results_match.group(1))
+
+        # message_id パラメータ
+        message_id_match = re.search(r'"message_id":\s*"([^"]+)"', text)
+        if message_id_match:
+            params['message_id'] = message_id_match.group(1)
+
+        # body パラメータ
+        body_match = re.search(r'"body":\s*"([^"]+)"', text)
+        if body_match:
+            params['body'] = body_match.group(1)
+
+        # query パラメータ
+        query_match = re.search(r'"query":\s*"([^"]+)"', text)
+        if query_match:
+            params['query'] = query_match.group(1)
+
+        return {
+            "name": name,
+            "parameters": params
+        }
 
     async def generate_final_response(
         self,

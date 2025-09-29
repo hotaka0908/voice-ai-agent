@@ -9,7 +9,6 @@ import io
 import wave
 import tempfile
 from typing import Optional, Dict, Any, Union
-import numpy as np
 from loguru import logger
 
 try:
@@ -124,9 +123,11 @@ class SpeechToText:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return ""
 
-    def _preprocess_audio(self, audio_data: bytes) -> Optional[Union[np.ndarray, bytes]]:
+    def _preprocess_audio(self, audio_data: bytes) -> Optional[Union[bytes, object]]:
         """音声データの前処理"""
         try:
+            # numpy は実行時にのみ読み込む（テスト環境のnumpy問題を回避）
+            import numpy as np  # type: ignore
             # 音声データ形式の検出
             if audio_data[:4] == b'RIFF':
                 # WAVファイルとして読み込み
@@ -177,8 +178,9 @@ class SpeechToText:
         logger.debug(f"Processing raw audio data: {len(audio_data)} bytes")
         return audio_data
 
-    def _resample_audio(self, audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    def _resample_audio(self, audio: object, orig_sr: int, target_sr: int) -> object:
         """音声のリサンプリング（簡易版）"""
+        import numpy as np  # type: ignore
         # 簡単なリサンプリング実装
         # 本格的な実装にはlibrosasampleimpactを使用することを推奨
         if orig_sr == target_sr:
@@ -190,7 +192,7 @@ class SpeechToText:
         indices = np.linspace(0, len(audio) - 1, new_length)
         return np.interp(indices, np.arange(len(audio)), audio)
 
-    async def _transcribe_local(self, audio_data: np.ndarray) -> str:
+    async def _transcribe_local(self, audio_data: object) -> str:
         """ローカルWhisperによる音声認識"""
         try:
             # Whisperで音声認識実行
@@ -233,9 +235,10 @@ class SpeechToText:
             logger.error(f"OpenAI Whisper raw transcription failed: {e}")
             raise
 
-    async def _transcribe_openai(self, audio_data: np.ndarray) -> str:
+    async def _transcribe_openai(self, audio_data: object) -> str:
         """OpenAI APIによる音声認識"""
         try:
+            import numpy as np  # type: ignore
             # 一時ファイルに音声を保存
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 # NumPy配列をWAVファイルに変換

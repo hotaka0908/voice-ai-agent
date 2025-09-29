@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional, Type
 from loguru import logger
 
 from src.core.tool_base import Tool, ToolResult
+import importlib
 
 
 class ToolRegistry:
@@ -22,6 +23,17 @@ class ToolRegistry:
         self.tools: Dict[str, Tool] = {}
         self.tool_classes: Dict[str, Type[Tool]] = {}
         self.is_initialized = False
+        # 組み込みツールの名前→実装マップ
+        self._builtin_map: Dict[str, str] = {
+            "weather": "src.tools.weather_tool:WeatherTool",
+            "time": "src.tools.time_tool:TimeTool",
+            "calculator": "src.tools.calculator_tool:CalculatorTool",
+            "memory": "src.tools.memory_tool:MemoryTool",
+            "search": "src.tools.search_tool:SearchTool",
+            "mobile_bridge": "src.tools.mobile_bridge_tool:MobileBridgeTool",
+            "mcp": "src.tools.mcp_tool:MCPTool",
+            "gmail": "src.tools.gmail_tool:GmailTool",
+        }
 
     async def initialize(self):
         """ツールレジストリの初期化"""
@@ -59,34 +71,34 @@ class ToolRegistry:
             raise
 
     async def _register_built_in_tools(self):
-        """組み込みツールの登録"""
-        try:
-            # 基本ツールを動的にインポート・登録
-            from src.tools.weather_tool import WeatherTool
-            from src.tools.time_tool import TimeTool
-            from src.tools.calculator_tool import CalculatorTool
-            from src.tools.memory_tool import MemoryTool
-            from src.tools.search_tool import SearchTool
-            from src.tools.mobile_bridge_tool import MobileBridgeTool
-            from src.tools.mcp_tool import MCPTool
+        """組み込みツールの登録（個別に失敗を許容）"""
+        tool_classes = []
 
-            built_in_tools = [
-                WeatherTool(),
-                TimeTool(),
-                CalculatorTool(),
-                MemoryTool(),
-                SearchTool(),
-                MobileBridgeTool(),
-                MCPTool(),
-            ]
+        # 個別インポートで、失敗しても他ツールの登録を継続
+        def _try_import(importer, name):
+            try:
+                cls = importer()
+                tool_classes.append(cls)
+            except ImportError as e:
+                logger.warning(f"Built-in tool '{name}' not available: {e}")
+            except Exception as e:
+                logger.error(f"Failed to load tool '{name}': {e}")
 
-            for tool in built_in_tools:
-                await self.register_tool(tool)
+        _try_import(lambda: __import__('src.tools.time_tool', fromlist=['TimeTool']).TimeTool, 'time')
+        _try_import(lambda: __import__('src.tools.calculator_tool', fromlist=['CalculatorTool']).CalculatorTool, 'calculator')
+        _try_import(lambda: __import__('src.tools.memory_tool', fromlist=['MemoryTool']).MemoryTool, 'memory')
+        _try_import(lambda: __import__('src.tools.weather_tool', fromlist=['WeatherTool']).WeatherTool, 'weather')
+        _try_import(lambda: __import__('src.tools.search_tool', fromlist=['SearchTool']).SearchTool, 'search')
+        _try_import(lambda: __import__('src.tools.mobile_bridge_tool', fromlist=['MobileBridgeTool']).MobileBridgeTool, 'mobile_bridge')
+        _try_import(lambda: __import__('src.tools.mcp_tool', fromlist=['MCPTool']).MCPTool, 'mcp')
+        _try_import(lambda: __import__('src.tools.gmail_tool', fromlist=['GmailTool']).GmailTool, 'gmail')
 
-        except ImportError as e:
-            logger.warning(f"Some built-in tools not available: {e}")
-        except Exception as e:
-            logger.error(f"Failed to register built-in tools: {e}")
+        # インスタンス化して登録
+        for tool_cls in tool_classes:
+            try:
+                await self.register_tool(tool_cls())
+            except Exception as e:
+                logger.error(f"Failed to register tool instance '{tool_cls}': {e}")
 
     async def _initialize_tool(self, tool_name: str, tool_instance: Tool):
         """個別ツールの初期化"""
@@ -158,7 +170,13 @@ class ToolRegistry:
             raise RuntimeError("Tool Registry not initialized")
 
         if tool_name not in self.tools:
-            raise ValueError(f"Tool {tool_name} not found")
+            # 動的ロードを試行
+            try:
+                await self.ensure_tool(tool_name)
+            except Exception as e:
+                logger.error(f"Failed to ensure tool {tool_name}: {e}")
+            if tool_name not in self.tools:
+                raise ValueError(f"Tool {tool_name} not found")
 
         tool = self.tools[tool_name]
 
@@ -180,7 +198,8 @@ class ToolRegistry:
             if isinstance(result, ToolResult):
                 if result.success:
                     logger.info(f"Tool {tool_name} executed successfully")
-                    return result.result
+                    # ToolResultオブジェクト全体を返す（メタデータを保持）
+                    return result
                 else:
                     logger.error(f"Tool {tool_name} execution failed: {result.error}")
                     return result.error or "ツールの実行に失敗しました"
@@ -204,10 +223,30 @@ class ToolRegistry:
 
         for tool_name, tool in self.tools.items():
             schema = tool.get_schema()
+            # Pydantic v2 互換: .dict() ではなく .model_dump() を使用
+            # Pydantic v2: model_dump(), v1: dict()
+            def _to_dict(p):
+                if hasattr(p, "model_dump"):
+                    return p.model_dump()
+                if hasattr(p, "dict"):
+                    return p.dict()
+                try:
+                    return dict(p)
+                except Exception:
+                    return {
+                        "name": getattr(p, "name", None),
+                        "type": getattr(p, "type", None),
+                        "description": getattr(p, "description", None),
+                        "required": getattr(p, "required", False),
+                        "default": getattr(p, "default", None),
+                        "enum": getattr(p, "enum", None),
+                    }
+
+            params = [_to_dict(param) for param in schema.parameters]
             tools_info.append({
                 "name": schema.name,
                 "description": schema.description,
-                "parameters": [param.dict() for param in schema.parameters],
+                "parameters": params,
                 "category": tool.category,
                 "requires_auth": tool.requires_auth,
                 "is_dangerous": tool.is_dangerous
@@ -297,11 +336,16 @@ class ToolRegistry:
 
         return True
 
-    def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
         """ツールレジストリの状態を取得"""
+        import asyncio as _asyncio
         tool_status = {}
         for tool_name, tool in self.tools.items():
-            tool_status[tool_name] = tool.get_status()
+            status = tool.get_status()
+            # ツール側のget_statusが非同期の場合はawait
+            if _asyncio.iscoroutine(status):
+                status = await status
+            tool_status[tool_name] = status
 
         return {
             "initialized": self.is_initialized,
@@ -340,6 +384,29 @@ class ToolRegistry:
 
         except Exception as e:
             logger.error(f"Failed to reload tool {tool_name}: {e}")
+            raise
+
+    async def ensure_tool(self, tool_name: str):
+        """ツールが未登録なら組み込みからロードして登録する"""
+        if tool_name in self.tools:
+            return
+
+        if tool_name not in self._builtin_map:
+            raise ValueError(f"Unknown tool: {tool_name}")
+
+        module_path, cls_name = self._builtin_map[tool_name].split(":")
+        try:
+            module = importlib.import_module(module_path)
+            cls = getattr(module, cls_name)
+            instance: Tool = cls()
+            await self.register_tool(instance)
+            await instance.initialize()
+            logger.info(f"Dynamically loaded and initialized tool: {tool_name}")
+        except ImportError as e:
+            logger.warning(f"Tool {tool_name} import failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Tool {tool_name} dynamic load failed: {e}")
             raise
 
     async def cleanup(self):

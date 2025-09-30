@@ -289,6 +289,122 @@ class MemoryTool(Tool):
 
         return personal_info
 
+    async def analyze_personality_type(self) -> Dict[str, Any]:
+        """過去の会話履歴から性格タイプを分析"""
+        try:
+            # 会話履歴を取得（memory_storageから関連データを抽出）
+            conversation_history = []
+            personality_traits = {
+                "friendly": 0,      # 友好的
+                "analytical": 0,    # 分析的
+                "creative": 0,      # 創造的
+                "practical": 0,     # 実用的
+                "curious": 0,       # 好奇心旺盛
+                "reserved": 0       # 控えめ
+            }
+
+            # メモリから会話パターンを分析
+            for key, entry in self.memory_storage.items():
+                value = entry.get("value", "").lower()
+
+                # キーワード分析
+                if any(word in value for word in ["ありがとう", "感謝", "嬉しい", "楽しい", "好き"]):
+                    personality_traits["friendly"] += 1
+
+                if any(word in value for word in ["分析", "考える", "理由", "なぜ", "どうして"]):
+                    personality_traits["analytical"] += 1
+
+                if any(word in value for word in ["作る", "デザイン", "アイデア", "創造", "表現"]):
+                    personality_traits["creative"] += 1
+
+                if any(word in value for word in ["効率", "便利", "実用", "使いやすい", "簡単"]):
+                    personality_traits["practical"] += 1
+
+                if any(word in value for word in ["知りたい", "教えて", "学ぶ", "調べる", "興味"]):
+                    personality_traits["curious"] += 1
+
+                if any(word in value for word in ["静か", "控えめ", "落ち着いた", "穏やか"]):
+                    personality_traits["reserved"] += 1
+
+            # 最も高いスコアの特性を取得
+            max_trait = max(personality_traits, key=personality_traits.get)
+            max_score = personality_traits[max_trait]
+
+            # 性格タイプのマッピング
+            personality_types = {
+                "friendly": {
+                    "type": "社交的タイプ",
+                    "icon": "😊",
+                    "description": "人との交流を大切にし、友好的で温かい性格です",
+                    "traits": ["フレンドリー", "協調性", "共感力"]
+                },
+                "analytical": {
+                    "type": "分析的タイプ",
+                    "icon": "🤔",
+                    "description": "論理的に物事を考え、深く分析する性格です",
+                    "traits": ["論理的思考", "問題解決能力", "洞察力"]
+                },
+                "creative": {
+                    "type": "創造的タイプ",
+                    "icon": "🎨",
+                    "description": "独創的なアイデアを生み出し、表現を大切にする性格です",
+                    "traits": ["創造性", "想像力", "表現力"]
+                },
+                "practical": {
+                    "type": "実用的タイプ",
+                    "icon": "⚙️",
+                    "description": "効率と実用性を重視し、現実的な解決策を好む性格です",
+                    "traits": ["効率性", "実用性", "現実的"]
+                },
+                "curious": {
+                    "type": "探究的タイプ",
+                    "icon": "🔍",
+                    "description": "新しいことへの好奇心が旺盛で、学ぶことを楽しむ性格です",
+                    "traits": ["好奇心", "学習意欲", "探究心"]
+                },
+                "reserved": {
+                    "type": "穏やかタイプ",
+                    "icon": "🌙",
+                    "description": "落ち着いていて控えめ、静かな環境を好む性格です",
+                    "traits": ["落ち着き", "思慮深さ", "内省的"]
+                }
+            }
+
+            # データが不足している場合のデフォルト
+            if max_score == 0:
+                return {
+                    "type": "未分析",
+                    "icon": "❓",
+                    "description": "まだ十分な会話データがありません。もっと会話をすることで性格タイプが分析されます。",
+                    "traits": [],
+                    "confidence": 0,
+                    "scores": personality_traits
+                }
+
+            personality_type = personality_types.get(max_trait, personality_types["friendly"])
+
+            # 信頼度を計算（会話データの量に基づく）
+            total_interactions = sum(personality_traits.values())
+            confidence = min(100, (total_interactions / 20) * 100)  # 20回の会話で100%
+
+            return {
+                **personality_type,
+                "confidence": round(confidence, 1),
+                "scores": personality_traits,
+                "total_interactions": total_interactions
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to analyze personality type: {e}")
+            return {
+                "type": "エラー",
+                "icon": "⚠️",
+                "description": "性格タイプの分析中にエラーが発生しました",
+                "traits": [],
+                "confidence": 0,
+                "scores": {}
+            }
+
     def format_personal_context(self) -> str:
         """個人情報をLLMのコンテキスト用に整形"""
         try:

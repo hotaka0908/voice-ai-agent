@@ -704,6 +704,177 @@ body {
 
 
 
+/* 性格タイプセクション */
+.personality-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-top: 24px;
+}
+
+.personality-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.personality-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+}
+
+.refresh-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.refresh-btn:hover {
+    opacity: 1;
+    background: #f3f4f6;
+    transform: rotate(90deg);
+}
+
+.personality-card {
+    padding: 32px 24px;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.personality-loading {
+    text-align: center;
+    color: #6b7280;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f4f6;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.personality-content {
+    text-align: center;
+    width: 100%;
+}
+
+.personality-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    line-height: 1;
+}
+
+.personality-type {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.personality-description {
+    font-size: 15px;
+    color: #6b7280;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.personality-traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.trait-badge {
+    background: #f3f4f6;
+    color: #374151;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.confidence-bar {
+    margin-top: 24px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.confidence-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.confidence-value {
+    font-weight: 600;
+    color: #111827;
+}
+
+.confidence-track {
+    height: 8px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.confidence-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+    border-radius: 4px;
+}
+
+.personality-error {
+    text-align: center;
+    color: #ef4444;
+}
+
+.personality-error p {
+    margin-bottom: 16px;
+}
+
+.retry-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.retry-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 480px) {
     .input-row {
@@ -717,5 +888,17 @@ body {
 
     .profile-header {
         padding: 20px 16px;
+    }
+
+    .personality-card {
+        padding: 24px 16px;
+    }
+
+    .personality-icon {
+        font-size: 48px;
+    }
+
+    .personality-type {
+        font-size: 20px;
     }
 }

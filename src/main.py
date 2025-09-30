@@ -250,6 +250,21 @@ async def configure_agent(config: dict):
     return {"status": "configured"}
 
 
+@app.get("/api/personality")
+async def get_personality_type():
+    """性格タイプの取得"""
+    try:
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if not memory_tool:
+            return {"error": "Memory tool not found"}
+
+        personality_type = await memory_tool.analyze_personality_type()
+        return personality_type
+    except Exception as e:
+        logger.error(f"Failed to get personality type: {e}")
+        return {"error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
 

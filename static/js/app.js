@@ -112,6 +112,21 @@ class VoiceAgent {
         document.getElementById('closeSettingsButton').addEventListener('click', () => {
             this.uiManager.closeSettings();
         });
+
+        // 性格タイプ更新ボタン
+        document.getElementById('refreshPersonality').addEventListener('click', () => {
+            this.loadPersonalityType();
+        });
+
+        // 設定パネルが開かれたときに性格タイプを自動ロード
+        document.getElementById('settingsButton').addEventListener('click', () => {
+            if (!this.uiManager.isSettingsOpen) {
+                // 設定を開く前にロード
+                setTimeout(() => {
+                    this.loadPersonalityType();
+                }, 300); // アニメーション後にロード
+            }
+        });
     }
 
     async toggleRecording() {
@@ -392,6 +407,78 @@ class VoiceAgent {
             console.error('Failed to save personal information:', error);
             this.uiManager.showError('個人情報の保存に失敗しました: ' + error.message);
         }
+    }
+
+    async loadPersonalityType() {
+        try {
+            console.log('Loading personality type...');
+
+            const card = document.getElementById('personalityCard');
+            if (!card) return;
+
+            // ローディング状態を表示
+            card.innerHTML = `
+                <div class="personality-loading">
+                    <div class="spinner"></div>
+                    <p>分析中...</p>
+                </div>
+            `;
+
+            // APIから性格タイプを取得
+            const response = await fetch('/api/personality');
+            const data = await response.json();
+
+            console.log('Personality type data:', data);
+
+            // 性格タイプを表示
+            this.displayPersonalityType(data);
+
+        } catch (error) {
+            console.error('Failed to load personality type:', error);
+            const card = document.getElementById('personalityCard');
+            if (card) {
+                card.innerHTML = `
+                    <div class="personality-error">
+                        <p>⚠️ 性格タイプの取得に失敗しました</p>
+                        <button onclick="window.voiceAgent.loadPersonalityType()" class="retry-btn">再試行</button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    displayPersonalityType(data) {
+        const card = document.getElementById('personalityCard');
+        if (!card) return;
+
+        const confidence = data.confidence || 0;
+        const confidenceColor = confidence >= 70 ? '#10b981' : confidence >= 40 ? '#f59e0b' : '#6b7280';
+
+        card.innerHTML = `
+            <div class="personality-content">
+                <div class="personality-icon">${data.icon || '❓'}</div>
+                <h4 class="personality-type">${data.type || '未分析'}</h4>
+                <p class="personality-description">${data.description || ''}</p>
+
+                ${data.traits && data.traits.length > 0 ? `
+                    <div class="personality-traits">
+                        ${data.traits.map(trait => `<span class="trait-badge">${trait}</span>`).join('')}
+                    </div>
+                ` : ''}
+
+                ${confidence > 0 ? `
+                    <div class="confidence-bar">
+                        <div class="confidence-label">
+                            <span>信頼度</span>
+                            <span class="confidence-value">${confidence}%</span>
+                        </div>
+                        <div class="confidence-track">
+                            <div class="confidence-fill" style="width: ${confidence}%; background-color: ${confidenceColor};"></div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
     }
 
     base64ToBlob(base64, mimeType) {

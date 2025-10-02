@@ -9,6 +9,9 @@ class VoiceAgent {
         this.audioManager = new AudioManager();
         this.websocketManager = new WebSocketManager();
         this.uiManager = new UIManager();
+        this.alarms = []; // アラーム一覧
+        this.alarmTimers = []; // アラームタイマー
+        this.tableTasks = []; // テーブルタスク一覧
 
         this.init();
     }
@@ -29,6 +32,12 @@ class VoiceAgent {
             // イベントリスナーの設定
             this.setupEventListeners();
 
+            // 初期ボイス設定を読み込んで画像を設定
+            await this.loadCurrentVoice();
+
+            // アラームの読み込みとスケジュール
+            await this.loadAndScheduleAlarms();
+
             this.isInitialized = true;
             this.uiManager.setStatus('ready', '話しかけてね');
             console.log('Voice Agent initialized successfully');
@@ -41,8 +50,8 @@ class VoiceAgent {
     }
 
     setupEventListeners() {
-        // マイクボタン
-        document.getElementById('micButton').addEventListener('click', () => {
+        // 画像コンテナクリックで音声入力
+        document.querySelector('.image-container').addEventListener('click', () => {
             this.toggleRecording();
         });
 
@@ -67,6 +76,9 @@ class VoiceAgent {
 
         // 各種設定の変更
         this.setupSettingsListeners();
+
+        // 連絡先ボタンのイベントリスナー
+        this.setupContactListeners();
 
         // WebSocketイベント
         this.websocketManager.on('message', (data) => {
@@ -100,6 +112,12 @@ class VoiceAgent {
                 this.toggleRecording();
             }
         });
+
+        // アラームダイアログのイベントリスナー
+        this.setupAlarmListeners();
+
+        // Gmailダイアログのイベントリスナー
+        this.setupGmailListeners();
     }
 
     setupSettingsListeners() {
@@ -120,12 +138,32 @@ class VoiceAgent {
 
         // 設定パネルが開かれたときに性格タイプを自動ロード
         document.getElementById('settingsButton').addEventListener('click', () => {
-            if (!this.uiManager.isSettingsOpen) {
-                // 設定を開く前にロード
+            if (this.uiManager.isSettingsOpen) {
+                // 設定を開いた後にロード
                 setTimeout(() => {
                     this.loadPersonalityType();
+                    this.loadCurrentMode();
+                    this.loadCurrentLLMConfig();
+                    this.loadCurrentVoice();
+                    this.loadAvailableTools();
+                    this.loadTableTasks();
                 }, 300); // アニメーション後にロード
             }
+        });
+
+        // モード設定適用ボタン
+        document.getElementById('applyModeSettings').addEventListener('click', () => {
+            this.applyModeSettings();
+        });
+
+        // LLM設定適用ボタン
+        document.getElementById('applyLLMSettings').addEventListener('click', () => {
+            this.applyLLMSettings();
+        });
+
+        // ボイス設定適用ボタン
+        document.getElementById('applyVoiceSettings').addEventListener('click', () => {
+            this.applyVoiceSettings();
         });
     }
 
@@ -158,6 +196,8 @@ class VoiceAgent {
 
         // 音声データのストリーミング開始
         this.audioManager.on('audioData', (audioData) => {
+            // 処理中状態に変更
+            this.uiManager.setProcessingState(true);
             this.websocketManager.sendAudioData(audioData);
         });
 
@@ -199,6 +239,30 @@ class VoiceAgent {
         }
     }
 
+    setupContactListeners() {
+        // 全ての連絡先ボタンにイベントリスナーを追加
+        document.querySelectorAll('.contact-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const contactItem = e.target.closest('.contact-item');
+                const contactName = contactItem.querySelector('.contact-name').textContent;
+                const isPhoneBtn = e.target.classList.contains('phone-btn');
+
+                if (isPhoneBtn) {
+                    this.handlePhoneCall(contactName);
+                } else {
+                    this.handleVoiceMessage(contactName);
+                }
+            });
+        });
+    }
+
+    handlePhoneCall(contactName) {
+        alert(`${contactName}への電話機能は準備中です`);
+    }
+
+    handleVoiceMessage(contactName) {
+        alert(`${contactName}へのボイスメッセージ機能は準備中です`);
+    }
 
     async sendTextMessage() {
         const textInput = document.getElementById('textInput');
@@ -338,6 +402,10 @@ class VoiceAgent {
     async playAudioResponse(audioUrl) {
         try {
             console.log('🔊 APP playAudioResponse called with:', audioUrl);
+
+            // 処理中状態を解除
+            this.uiManager.setProcessingState(false);
+
             this.isSpeaking = true;
             this.uiManager.setSpeakingState(true);
 
@@ -352,6 +420,8 @@ class VoiceAgent {
             console.error('❌ Error details:', error.stack);
             this.isSpeaking = false;
             this.uiManager.setSpeakingState(false);
+            // エラー時も処理中状態を解除
+            this.uiManager.setProcessingState(false);
         }
     }
 
@@ -447,12 +517,114 @@ class VoiceAgent {
         }
     }
 
+    async loadCurrentMode() {
+        try {
+            console.log('Loading current mode...');
+
+            const response = await fetch('/api/mode/current');
+            const data = await response.json();
+
+            console.log('Current mode:', data);
+
+            // モードを設定
+            if (data.mode) {
+                document.getElementById('aiMode').value = data.mode;
+            }
+
+            // 現在のモード情報を表示
+            const modeNames = {
+                'assist': 'アシストモード',
+                'auto': '全自動モード'
+            };
+            const modeName = modeNames[data.mode] || data.mode;
+            document.getElementById('currentModeValue').textContent = modeName;
+
+        } catch (error) {
+            console.error('Failed to load current mode:', error);
+            document.getElementById('currentModeValue').textContent = '取得失敗';
+        }
+    }
+
+    async applyModeSettings() {
+        try {
+            console.log('Applying mode settings...');
+
+            const mode = document.getElementById('aiMode').value;
+
+            if (!mode) {
+                this.uiManager.showError('モードを選択してください');
+                return;
+            }
+
+            // APIでモードを切り替え
+            const response = await fetch('/api/mode/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                this.uiManager.showError(`モード切り替え失敗: ${result.error}`);
+                return;
+            }
+
+            const modeNames = {
+                'assist': 'アシストモード',
+                'auto': '全自動モード'
+            };
+            const modeName = modeNames[mode];
+            this.uiManager.showSuccess(`${modeName}に切り替えました`);
+            console.log('Mode settings applied:', result);
+
+            // 現在のモード情報を更新
+            await this.loadCurrentMode();
+
+        } catch (error) {
+            console.error('Failed to apply mode settings:', error);
+            this.uiManager.showError('モードの切り替えに失敗しました: ' + error.message);
+        }
+    }
+
     displayPersonalityType(data) {
         const card = document.getElementById('personalityCard');
         if (!card) return;
 
         const confidence = data.confidence || 0;
         const confidenceColor = confidence >= 70 ? '#10b981' : confidence >= 40 ? '#f59e0b' : '#6b7280';
+
+        // 分析データの表示
+        let analysisDataHtml = '';
+        if (data.analysis_data) {
+            const ad = data.analysis_data;
+            analysisDataHtml = `
+                <div class="analysis-data">
+                    <h5 style="font-size: 0.9rem; margin: 1rem 0 0.5rem 0; color: #64748b;">📊 分析データ</h5>
+                    <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem;">
+                        <div>総メッセージ数: ${ad.message_count || 0}件</div>
+                        <div>会話履歴: ${ad.data_sources?.conversations || 0}件</div>
+                        <div>個人情報: ${ad.data_sources?.personal_info || 0}件</div>
+                    </div>
+                    ${ad.trait_scores ? `
+                        <div style="margin-top: 0.8rem;">
+                            <h6 style="font-size: 0.85rem; margin-bottom: 0.4rem; color: #64748b;">特性スコア:</h6>
+                            ${Object.entries(ad.trait_scores).map(([trait, score]) => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                                    <span style="font-size: 0.8rem; color: #475569;">${trait}</span>
+                                    <div style="flex: 1; margin: 0 0.5rem; background: #e2e8f0; height: 6px; border-radius: 3px; overflow: hidden;">
+                                        <div style="width: ${Math.min(100, score * 10)}%; height: 100%; background: #3b82f6;"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; color: #94a3b8; min-width: 30px; text-align: right;">${score}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
 
         card.innerHTML = `
             <div class="personality-content">
@@ -477,8 +649,448 @@ class VoiceAgent {
                         </div>
                     </div>
                 ` : ''}
+
+                ${analysisDataHtml}
             </div>
         `;
+    }
+
+    async loadCurrentLLMConfig() {
+        try {
+            console.log('Loading current LLM config...');
+
+            const response = await fetch('/api/llm/current');
+            const data = await response.json();
+
+            console.log('Current LLM config:', data);
+
+            // プロバイダーを設定
+            if (data.provider) {
+                document.getElementById('llmProvider').value = data.provider;
+            }
+
+            // 現在のプロバイダー情報を表示
+            const providerName = data.provider === 'claude' ? 'Claude' : data.provider === 'openai' ? 'ChatGPT' : data.provider;
+            document.getElementById('currentModelValue').textContent = providerName;
+
+        } catch (error) {
+            console.error('Failed to load current LLM config:', error);
+            document.getElementById('currentModelValue').textContent = '取得失敗';
+        }
+    }
+
+    async applyLLMSettings() {
+        try {
+            console.log('Applying LLM settings...');
+
+            const provider = document.getElementById('llmProvider').value;
+
+            if (!provider) {
+                this.uiManager.showError('プロバイダーを選択してください');
+                return;
+            }
+
+            // デフォルトモデルを設定
+            const defaultModels = {
+                'claude': 'claude-3-haiku-20240307',
+                'openai': 'gpt-4o-mini'
+            };
+
+            const model = defaultModels[provider];
+
+            // APIでプロバイダーを切り替え
+            const response = await fetch('/api/llm/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ provider, model })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                this.uiManager.showError(`プロバイダー切り替え失敗: ${result.error}`);
+                return;
+            }
+
+            const providerName = provider === 'claude' ? 'Claude' : 'ChatGPT';
+            this.uiManager.showSuccess(`${providerName}に切り替えました`);
+            console.log('LLM settings applied:', result);
+
+            // 現在のプロバイダー情報を更新
+            await this.loadCurrentLLMConfig();
+
+        } catch (error) {
+            console.error('Failed to apply LLM settings:', error);
+            this.uiManager.showError('プロバイダーの切り替えに失敗しました: ' + error.message);
+        }
+    }
+
+    async loadCurrentVoice() {
+        try {
+            console.log('Loading current voice...');
+
+            const response = await fetch('/api/voice/current');
+            const data = await response.json();
+
+            console.log('Current voice:', data);
+
+            // ボイスを設定
+            if (data.voice) {
+                document.getElementById('voiceSelect').value = data.voice;
+                // 画像を更新
+                this.updateAgentImage(data.voice);
+            }
+
+            // 現在のボイス情報を表示
+            const voiceNames = {
+                'alloy': '女性',
+                'echo': '男性',
+                'fable': '五条悟',
+                'shimmer': '初音ミク',
+                'nova': 'Nova (女性・明るい)',
+                'onyx': 'Onyx (男性・深い)'
+            };
+            const voiceName = voiceNames[data.voice] || data.voice;
+            document.getElementById('currentVoiceValue').textContent = voiceName;
+
+        } catch (error) {
+            console.error('Failed to load current voice:', error);
+            document.getElementById('currentVoiceValue').textContent = '取得失敗';
+        }
+    }
+
+    async applyVoiceSettings() {
+        try {
+            console.log('Applying voice settings...');
+
+            const voice = document.getElementById('voiceSelect').value;
+
+            if (!voice) {
+                this.uiManager.showError('ボイスを選択してください');
+                return;
+            }
+
+            // APIでボイスを切り替え
+            const response = await fetch('/api/voice/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ voice })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                this.uiManager.showError(`ボイス切り替え失敗: ${result.error}`);
+                return;
+            }
+
+            const voiceNames = {
+                'alloy': '女性',
+                'echo': '男性',
+                'fable': '五条悟',
+                'shimmer': '初音ミク',
+                'onyx': 'Onyx',
+                'nova': 'Nova'
+            };
+            const voiceName = voiceNames[voice] || voice;
+            this.uiManager.showSuccess(`${voiceName}に切り替えました`);
+            console.log('Voice settings applied:', result);
+
+            // 画像を更新
+            this.updateAgentImage(voice);
+
+            // 現在のボイス情報を更新
+            await this.loadCurrentVoice();
+
+        } catch (error) {
+            console.error('Failed to apply voice settings:', error);
+            this.uiManager.showError('ボイスの切り替えに失敗しました: ' + error.message);
+        }
+    }
+
+    async loadAvailableTools() {
+        try {
+            console.log('🔧 Loading available tools...');
+
+            const listContainer = document.getElementById('toolsList');
+            if (!listContainer) {
+                console.error('❌ toolsList element not found');
+                return;
+            }
+
+            // ローディング状態を表示
+            listContainer.innerHTML = `
+                <div class="tools-loading">
+                    <div class="spinner"></div>
+                    <p>読み込み中...</p>
+                </div>
+            `;
+
+            // APIからツール一覧を取得
+            console.log('🔧 Fetching from /api/tools...');
+            const response = await fetch('/api/tools');
+            console.log('🔧 Response status:', response.status);
+
+            const data = await response.json();
+            console.log('🔧 Available tools data:', data);
+
+            // 除外するツール
+            const excludedTools = ['time', 'calculator', 'weather', 'search', 'mobile_bridge', 'memory', 'mcp'];
+
+            // フィルタリング
+            const filteredTools = data.tools.filter(tool => !excludedTools.includes(tool.name));
+
+            // ツール一覧を表示
+            if (filteredTools && filteredTools.length > 0) {
+                listContainer.innerHTML = filteredTools.map(tool => {
+                    const isConnected = this.isToolConnected(tool.name);
+                    const statusText = isConnected ? '連携済み' : '未連携';
+                    const statusClass = isConnected ? 'connected' : 'not-connected';
+
+                    return `
+                        <div class="tool-item" data-tool-name="${tool.name}">
+                            <div class="tool-info">
+                                <div class="tool-name">${this.getToolDisplayName(tool.name)}</div>
+                                <div class="tool-description">${tool.description}</div>
+                            </div>
+                            <div class="tool-status ${statusClass}">
+                                ${statusText}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // ツールアイテムにクリックイベントを追加
+                document.querySelectorAll('.tool-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const toolName = item.getAttribute('data-tool-name');
+                        this.handleToolClick(toolName);
+                    });
+                });
+            } else {
+                listContainer.innerHTML = `
+                    <div class="tools-empty">
+                        <p>利用可能なツールがありません</p>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Failed to load available tools:', error);
+            const listContainer = document.getElementById('toolsList');
+            if (listContainer) {
+                listContainer.innerHTML = `
+                    <div class="tools-error">
+                        <p>⚠️ ツール一覧の取得に失敗しました</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    getToolIcon(toolName) {
+        const icons = {
+            'time': '⏰',
+            'calculator': '🧮',
+            'memory': '🧠',
+            'weather': '🌤️',
+            'search': '🔍',
+            'mobile_bridge': '📱',
+            'mcp': '🔌',
+            'gmail': '📧',
+            'aircon': '❄️',
+            'light': '💡',
+            'taxi': '🚕',
+            'robot': '🤖'
+        };
+        return icons[toolName] || '🔧';
+    }
+
+    getToolDisplayName(toolName) {
+        const names = {
+            'time': '時刻',
+            'calculator': '計算機',
+            'memory': 'メモリ',
+            'weather': '天気',
+            'search': '検索',
+            'mobile_bridge': 'モバイル連携',
+            'mcp': 'MCP',
+            'gmail': 'Gmail',
+            'calendar': 'カレンダー',
+            'alarm': 'アラーム',
+            'aircon': 'エアコン',
+            'light': '電気(リビング)',
+            'taxi': 'タクシー',
+            'robot': 'ロボット'
+        };
+        return names[toolName] || toolName;
+    }
+
+    isToolConnected(toolName) {
+        // 連携済みのツールを定義
+        const connectedTools = ['gmail', 'alarm'];
+        return connectedTools.includes(toolName);
+    }
+
+    handleToolClick(toolName) {
+        console.log('🔧 Tool clicked:', toolName);
+
+        if (toolName === 'alarm') {
+            this.openAlarmDialog();
+        } else if (toolName === 'calendar') {
+            // カレンダー機能は未実装
+            alert('カレンダー機能は準備中です');
+        } else if (toolName === 'gmail') {
+            this.showGmailInfo();
+        }
+    }
+
+    async showGmailInfo() {
+        // ダイアログを開く
+        document.getElementById('gmailDialog').style.display = 'flex';
+
+        try {
+            console.log('📧 Fetching Gmail info from /api/gmail/info...');
+            const response = await fetch('/api/gmail/info');
+            console.log('📧 Response status:', response.status);
+            const data = await response.json();
+            console.log('📧 Gmail info data:', data);
+
+            const gmailStatus = document.getElementById('gmailStatus');
+
+            if (data.connected && data.email) {
+                gmailStatus.innerHTML = `
+                    <div class="gmail-connected">
+                        <div class="status-icon">✅</div>
+                        <h4>Gmail連携中</h4>
+                        <div class="gmail-email">
+                            <label>連携アカウント:</label>
+                            <p>${data.email}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                gmailStatus.innerHTML = `
+                    <div class="gmail-disconnected">
+                        <div class="status-icon">❌</div>
+                        <h4>Gmail未連携</h4>
+                        <p class="error-message">${data.error || '認証情報が見つかりません'}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to get Gmail info:', error);
+            const gmailStatus = document.getElementById('gmailStatus');
+            gmailStatus.innerHTML = `
+                <div class="gmail-error">
+                    <div class="status-icon">⚠️</div>
+                    <h4>エラー</h4>
+                    <p class="error-message">Gmail情報の取得に失敗しました</p>
+                </div>
+            `;
+        }
+    }
+
+    setupGmailListeners() {
+        // Gmailダイアログの閉じるボタン
+        document.getElementById('closeGmailDialog').addEventListener('click', () => {
+            this.closeGmailDialog();
+        });
+
+        document.getElementById('closeGmailInfoBtn').addEventListener('click', () => {
+            this.closeGmailDialog();
+        });
+
+        // ダイアログ外クリックで閉じる
+        document.getElementById('gmailDialog').addEventListener('click', (e) => {
+            if (e.target.id === 'gmailDialog') {
+                this.closeGmailDialog();
+            }
+        });
+    }
+
+    closeGmailDialog() {
+        document.getElementById('gmailDialog').style.display = 'none';
+    }
+
+    updateAgentImage(voice) {
+        const agentImage = document.getElementById('agentImage');
+        if (!agentImage) {
+            console.error('❌ agentImage element not found');
+            return;
+        }
+
+        console.log(`🖼️ updateAgentImage called with voice: "${voice}" (type: ${typeof voice}, length: ${voice?.length})`);
+
+        // ボイスごとに画像を設定
+        const voiceImageMap = {
+            'alloy': '/static/images/fishw.png',   // 女性
+            'echo': '/static/images/fishm.png',    // 男性
+            'fable': '/static/images/gojo.png',    // 五条悟
+            'shimmer': '/static/images/miku.png.webp'  // 初音ミク
+        };
+
+        console.log(`🔍 Looking for mapping: voiceImageMap["${voice}"] = ${voiceImageMap[voice]}`);
+        console.log(`🔍 Available mappings:`, Object.keys(voiceImageMap));
+
+        if (voiceImageMap[voice]) {
+            agentImage.src = voiceImageMap[voice];
+            agentImage.alt = `AI Agent (${voice})`;
+            console.log(`✅ Updated image to ${voiceImageMap[voice]} (${voice} voice)`);
+        } else {
+            console.warn(`⚠️ No image mapping found for voice: "${voice}"`);
+        }
+    }
+
+    playAlarmSound() {
+        // Web Audio APIを使って鈴の音を生成
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioContext.currentTime;
+
+        // ベル音を3回鳴らす
+        for (let i = 0; i < 3; i++) {
+            const startTime = now + (i * 0.3);
+
+            // 高音の正弦波（ベルの基音）
+            const oscillator1 = audioContext.createOscillator();
+            const gainNode1 = audioContext.createGain();
+            oscillator1.connect(gainNode1);
+            gainNode1.connect(audioContext.destination);
+
+            oscillator1.frequency.setValueAtTime(880, startTime); // A5
+            oscillator1.type = 'sine';
+
+            // エンベロープ（音量の変化）
+            gainNode1.gain.setValueAtTime(0, startTime);
+            gainNode1.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+            gainNode1.gain.exponentialRampToValueAtTime(0.01, startTime + 0.25);
+
+            oscillator1.start(startTime);
+            oscillator1.stop(startTime + 0.25);
+
+            // 倍音を追加（よりリアルなベル音に）
+            const oscillator2 = audioContext.createOscillator();
+            const gainNode2 = audioContext.createGain();
+            oscillator2.connect(gainNode2);
+            gainNode2.connect(audioContext.destination);
+
+            oscillator2.frequency.setValueAtTime(1320, startTime); // E6
+            oscillator2.type = 'sine';
+
+            gainNode2.gain.setValueAtTime(0, startTime);
+            gainNode2.gain.linearRampToValueAtTime(0.15, startTime + 0.01);
+            gainNode2.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+
+            oscillator2.start(startTime);
+            oscillator2.stop(startTime + 0.2);
+        }
+
+        // ベル音の再生時間（約1秒）を返す
+        return new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     base64ToBlob(base64, mimeType) {
@@ -490,11 +1102,409 @@ class VoiceAgent {
         const byteArray = new Uint8Array(byteNumbers);
         return new Blob([byteArray], { type: mimeType });
     }
+
+    // ============= アラーム機能 =============
+
+    setupAlarmListeners() {
+        // アラームダイアログの閉じるボタン
+        document.getElementById('closeAlarmDialog').addEventListener('click', () => {
+            this.closeAlarmDialog();
+        });
+
+        document.getElementById('cancelAlarmBtn').addEventListener('click', () => {
+            this.closeAlarmDialog();
+        });
+
+        // アラーム設定ボタン
+        document.getElementById('setAlarmBtn').addEventListener('click', () => {
+            this.setAlarm();
+        });
+
+        // ダイアログ外クリックで閉じる
+        document.getElementById('alarmDialog').addEventListener('click', (e) => {
+            if (e.target.id === 'alarmDialog') {
+                this.closeAlarmDialog();
+            }
+        });
+    }
+
+    openAlarmDialog() {
+        document.getElementById('alarmDialog').style.display = 'flex';
+        this.loadAlarmList();
+    }
+
+    closeAlarmDialog() {
+        document.getElementById('alarmDialog').style.display = 'none';
+        // フォームをクリア
+        document.getElementById('alarmTime').value = '';
+        document.getElementById('alarmMessage').value = '';
+        document.getElementById('alarmRepeat').checked = false;
+    }
+
+    async setAlarm() {
+        const time = document.getElementById('alarmTime').value;
+        const message = document.getElementById('alarmMessage').value;
+        const repeat = document.getElementById('alarmRepeat').checked;
+
+        if (!time) {
+            alert('時刻を入力してください');
+            return;
+        }
+
+        if (!message) {
+            alert('メッセージを入力してください');
+            return;
+        }
+
+        try {
+            // バックエンドにアラームを保存
+            const response = await fetch('/api/alarms/set', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    time: time,
+                    label: 'アラーム',
+                    message: message,
+                    repeat: repeat
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.alarm) {
+                const alarm = data.alarm;
+                this.alarms.push(alarm);
+                this.scheduleAlarm(alarm);
+                this.loadAlarmList();
+
+                // フォームをクリア
+                document.getElementById('alarmTime').value = '';
+                document.getElementById('alarmMessage').value = '';
+                document.getElementById('alarmRepeat').checked = false;
+
+                console.log('✅ Alarm set:', alarm);
+            } else {
+                alert('アラーム設定に失敗しました: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to set alarm:', error);
+            alert('アラーム設定に失敗しました');
+        }
+    }
+
+    scheduleAlarm(alarm) {
+        const now = new Date();
+        const [hours, minutes] = alarm.time.split(':').map(Number);
+
+        const alarmTime = new Date();
+        alarmTime.setHours(hours, minutes, 0, 0);
+
+        // 既に過ぎていたら明日に設定
+        const isNextDay = alarmTime <= now;
+        if (isNextDay) {
+            alarmTime.setDate(alarmTime.getDate() + 1);
+        }
+
+        const timeUntilAlarm = alarmTime - now;
+        const minutesUntil = Math.round(timeUntilAlarm / 1000 / 60);
+        const hoursUntil = Math.floor(minutesUntil / 60);
+        const remainingMinutes = minutesUntil % 60;
+
+        const timerId = setTimeout(() => {
+            console.log(`🔔 Executing alarm: ${alarm.time} - ${alarm.message}`);
+            this.triggerAlarm(alarm);
+        }, timeUntilAlarm);
+
+        this.alarmTimers.push({ id: alarm.id, timerId: timerId });
+
+        const timeStr = hoursUntil > 0
+            ? `${hoursUntil}時間${remainingMinutes}分後`
+            : `${remainingMinutes}分後`;
+
+        console.log(`⏰ Alarm scheduled:`, {
+            time: alarm.time,
+            message: alarm.message,
+            scheduledFor: alarmTime.toLocaleString('ja-JP'),
+            triggerIn: timeStr,
+            isNextDay: isNextDay,
+            currentTime: now.toLocaleString('ja-JP'),
+            alarmId: alarm.id
+        });
+    }
+
+    async triggerAlarm(alarm) {
+        console.log('🔔 Alarm triggered:', alarm);
+
+        try {
+            // 1. まず鈴の音を再生
+            console.log('🔔 Playing alarm sound...');
+            await this.playAlarmSound();
+
+            // 2. アラーム音が終わったら、メッセージを読み上げ
+            console.log('📢 Playing alarm message...');
+            const response = await fetch('/api/alarms/trigger', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: alarm.message
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Alarm trigger response:', data);
+
+                if (data.success && data.audio) {
+                    const audioBlob = this.base64ToBlob(data.audio, 'audio/wav');
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    await this.playAudioResponse(audioUrl);
+                } else {
+                    console.error('Alarm trigger failed:', data.error);
+                }
+            } else {
+                console.error('Alarm trigger request failed:', response.status);
+            }
+        } catch (error) {
+            console.error('Failed to play alarm:', error);
+        }
+
+        // 繰り返しの場合は再スケジュール
+        if (alarm.repeat) {
+            this.scheduleAlarm(alarm);
+        } else {
+            // 繰り返しでない場合はアラームを削除
+            this.deleteAlarm(alarm.id);
+        }
+    }
+
+    async loadAlarmList() {
+        const alarmList = document.getElementById('alarmList');
+
+        try {
+            // バックエンドからアラーム一覧を取得
+            const response = await fetch('/api/alarms/list');
+            const data = await response.json();
+
+            if (data.success && data.alarms) {
+                // ローカルの配列も更新
+                this.alarms = data.alarms;
+
+                if (this.alarms.length === 0) {
+                    alarmList.innerHTML = '<p class="alarm-empty">設定されているアラームはありません</p>';
+                    return;
+                }
+
+                alarmList.innerHTML = this.alarms.map(alarm => `
+                    <div class="alarm-item">
+                        <div class="alarm-item-info">
+                            <div class="alarm-item-time">${alarm.time} ${alarm.repeat ? '(毎日)' : ''}</div>
+                            <div class="alarm-item-message">${alarm.message}</div>
+                        </div>
+                        <button class="alarm-item-delete" onclick="app.deleteAlarm('${alarm.id}')">削除</button>
+                    </div>
+                `).join('');
+
+                // 既存のタイマーをクリア
+                this.alarmTimers.forEach(timer => clearTimeout(timer.timerId));
+                this.alarmTimers = [];
+
+                // 全てのアラームをスケジュール
+                this.alarms.forEach(alarm => this.scheduleAlarm(alarm));
+            }
+        } catch (error) {
+            console.error('Failed to load alarms:', error);
+            alarmList.innerHTML = '<p class="alarm-empty">アラーム一覧の取得に失敗しました</p>';
+        }
+    }
+
+    async deleteAlarm(alarmId) {
+        try {
+            // バックエンドでアラームを削除
+            const response = await fetch('/api/alarms/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    alarm_id: alarmId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // ローカルからも削除
+                this.alarms = this.alarms.filter(a => a.id !== alarmId);
+
+                // タイマーをキャンセル
+                const timer = this.alarmTimers.find(t => t.id === alarmId);
+                if (timer) {
+                    clearTimeout(timer.timerId);
+                    this.alarmTimers = this.alarmTimers.filter(t => t.id !== alarmId);
+                }
+
+                this.loadAlarmList();
+                console.log('🗑️ Alarm deleted:', alarmId);
+            } else {
+                alert('アラーム削除に失敗しました: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to delete alarm:', error);
+            alert('アラーム削除に失敗しました');
+        }
+    }
+
+    async loadTableTasks() {
+        try {
+            console.log('Loading table tasks...');
+
+            const response = await fetch('/api/table/tasks');
+            const data = await response.json();
+
+            if (data.success && data.tasks) {
+                this.tableTasks = data.tasks;
+                this.renderTableTasks();
+            }
+        } catch (error) {
+            console.error('Failed to load table tasks:', error);
+            const tableList = document.getElementById('tableList');
+            if (tableList) {
+                tableList.innerHTML = '<div class="table-empty"><p>タスクの取得に失敗しました</p></div>';
+            }
+        }
+    }
+
+    renderTableTasks() {
+        const tableList = document.getElementById('tableList');
+        if (!tableList) return;
+
+        if (this.tableTasks.length === 0) {
+            tableList.innerHTML = '<div class="table-empty"><p>タスクはありません</p></div>';
+            return;
+        }
+
+        tableList.innerHTML = this.tableTasks.map(task => {
+            const statusText = task.status === 'processing' ? '処理中' : '完了';
+            const statusClass = task.status === 'processing' ? 'processing' : 'completed';
+            const timestamp = new Date(task.created_at).toLocaleString('ja-JP');
+
+            return `
+                <div class="table-item" data-task-id="${task.id}">
+                    <div class="table-info">
+                        <div class="table-title">${task.title}</div>
+                        <div class="table-timestamp">${timestamp}</div>
+                    </div>
+                    <div class="table-status ${statusClass}">
+                        ${statusText}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // タスククリックイベントを追加
+        document.querySelectorAll('.table-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const taskId = item.getAttribute('data-task-id');
+                this.openTableTaskDetail(taskId);
+            });
+        });
+    }
+
+    openTableTaskDetail(taskId) {
+        const task = this.tableTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const statusText = task.status === 'processing' ? '処理中' : '完了';
+        const content = task.content || 'タスク内容なし';
+        const result = task.result || (task.status === 'processing' ? '処理中...' : '結果なし');
+
+        alert(`【${task.title}】\n\n状態: ${statusText}\n\n内容:\n${content}\n\n結果:\n${result}`);
+    }
+
+    async addTableTask(title, content, status = 'processing') {
+        try {
+            const response = await fetch('/api/table/tasks/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: title,
+                    content: content,
+                    status: status
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                await this.loadTableTasks();
+                return data.task;
+            }
+        } catch (error) {
+            console.error('Failed to add table task:', error);
+        }
+    }
+
+    async updateTableTaskStatus(taskId, status, result = '') {
+        try {
+            const response = await fetch('/api/table/tasks/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    task_id: taskId,
+                    status: status,
+                    result: result
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                await this.loadTableTasks();
+            }
+        } catch (error) {
+            console.error('Failed to update table task:', error);
+        }
+    }
+
+    async loadAndScheduleAlarms() {
+        try {
+            // バックエンドからアラーム一覧を取得
+            const response = await fetch('/api/alarms/list');
+            const data = await response.json();
+
+            if (data.success && data.alarms) {
+                // ローカルの配列を更新
+                this.alarms = data.alarms;
+
+                // 既存のタイマーをクリア
+                this.alarmTimers.forEach(timer => clearTimeout(timer.timerId));
+                this.alarmTimers = [];
+
+                // 全てのアラームをスケジュール
+                this.alarms.forEach(alarm => this.scheduleAlarm(alarm));
+
+                if (this.alarms.length > 0) {
+                    console.log(`⏰ Loaded and scheduled ${this.alarms.length} alarm(s)`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load and schedule alarms:', error);
+        }
+    }
 }
 
 // アプリケーションの初期化
 document.addEventListener('DOMContentLoaded', () => {
     window.voiceAgent = new VoiceAgent();
+    window.app = window.voiceAgent; // グローバルアクセス用
 });
 
 // エラーハンドリング

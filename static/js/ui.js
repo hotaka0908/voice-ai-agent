@@ -13,13 +13,7 @@ class UIManager {
         // DOM要素の取得
         this.elements = {
             // ステータス表示
-            voiceStatus: document.getElementById('voiceStatus'),
-            statusIndicator: document.getElementById('statusIndicator'),
-            statusText: document.getElementById('statusText'),
-            mouth: document.getElementById('mouth'),
-
-            // コントロールボタン
-            micButton: document.getElementById('micButton'),
+            agentImage: document.getElementById('agentImage'),
 
             // 会話エリア
             conversation: document.getElementById('conversation'),
@@ -55,55 +49,20 @@ class UIManager {
         console.log('UI Manager initialized successfully');
     }
 
-    // 顔の状態を設定
+    // 画像の状態を設定
     setFaceState(state) {
-        const mouth = this.elements.mouth;
-        if (!mouth) return;
+        const agentImage = this.elements.agentImage;
+        if (!agentImage) return;
 
         // 既存のクラスを削除
-        mouth.classList.remove('speaking', 'listening');
+        agentImage.classList.remove('speaking', 'listening', 'idle');
 
         // 新しい状態を設定
-        switch (state) {
-            case 'speaking':
-                mouth.classList.add('speaking');
-                break;
-            case 'listening':
-                mouth.classList.add('listening');
-                break;
-            case 'idle':
-            default:
-                // デフォルトの口の形（何もしない）
-                break;
-        }
+        agentImage.classList.add(state);
     }
 
     // ステータス管理
     setStatus(status, message) {
-        if (!this.elements.statusText) return;
-
-        this.elements.statusText.textContent = message;
-
-        // ステータスインジケーターの更新
-        const indicator = this.elements.statusIndicator;
-        if (indicator) {
-            // 既存のクラスをクリア
-            indicator.classList.remove('ready', 'recording', 'processing', 'speaking', 'error');
-
-            // 新しいステータスクラスを追加
-            indicator.classList.add(status);
-
-            // パルスアニメーションの制御
-            const pulse = indicator.querySelector('.pulse');
-            if (pulse) {
-                if (status === 'recording' || status === 'processing') {
-                    pulse.style.animationPlayState = 'running';
-                } else {
-                    pulse.style.animationPlayState = 'paused';
-                }
-            }
-        }
-
         console.log('Status updated:', status, message);
     }
 
@@ -136,19 +95,43 @@ class UIManager {
 
     // 録音状態の管理
     setRecordingState(isRecording) {
-        const micButton = this.elements.micButton;
-        if (!micButton) return;
+        const agentImage = this.elements.agentImage;
+        const overlay = document.getElementById('imageOverlay');
+        const overlayText = document.getElementById('overlayText');
+        if (!agentImage) return;
 
         if (isRecording) {
             this.setFaceState('listening');
-            micButton.classList.add('recording');
-            micButton.title = '録音を停止';
-            micButton.textContent = '⏹️';
+
+            // オーバーレイのテキストを変更
+            if (overlayText) {
+                overlayText.textContent = '録音中...';
+            }
+
+            // 現在の画像に応じて録音中の画像に変更（五条悟と初音ミクは変更しない）
+            const currentSrc = agentImage.src;
+            if (currentSrc.includes('fishw.png')) {
+                agentImage.src = '/static/images/fishwfun.png';
+            } else if (currentSrc.includes('fishm.png')) {
+                agentImage.src = '/static/images/fishmfun.png';
+            }
+            // gojo.pngとmiku.png.webpは変更しない
         } else {
             this.setFaceState('idle');
-            micButton.classList.remove('recording');
-            micButton.title = 'マイクのON/OFF';
-            micButton.textContent = '🎤';
+
+            // オーバーレイのテキストを元に戻す
+            if (overlayText) {
+                overlayText.textContent = 'タッチで話しかけて';
+            }
+
+            // 録音終了時は元の画像に戻す（五条悟と初音ミクは変更しない）
+            const currentSrc = agentImage.src;
+            if (currentSrc.includes('fishwfun.png')) {
+                agentImage.src = '/static/images/fishw.png';
+            } else if (currentSrc.includes('fishmfun.png')) {
+                agentImage.src = '/static/images/fishm.png';
+            }
+            // gojo.pngとmiku.png.webpは変更しない
         }
     }
 
@@ -159,6 +142,17 @@ class UIManager {
         } else {
             this.setStatus('ready', '話しかけてね');
             this.setFaceState('idle');
+        }
+    }
+
+    setProcessingState(isProcessing) {
+        const overlayText = document.getElementById('overlayText');
+        if (!overlayText) return;
+
+        if (isProcessing) {
+            overlayText.textContent = '処理中...';
+        } else {
+            overlayText.textContent = 'タッチで話しかけて';
         }
     }
 
@@ -400,19 +394,12 @@ class UIManager {
 
     // 音量レベル表示
     updateVolumeLevel(level) {
-        const indicator = this.elements.statusIndicator;
-        if (!indicator) return;
+        const agentImage = this.elements.agentImage;
+        if (!agentImage) return;
 
-        // 音量レベルに応じてインジケーターのサイズを変更
-        const scale = 1 + (level * 0.3); // 1.0 〜 1.3の範囲
-        indicator.style.transform = `scale(${scale})`;
-
-        // 音量に応じて色を変更
-        const pulse = indicator.querySelector('.pulse');
-        if (pulse) {
-            const opacity = 0.3 + (level * 0.7); // 0.3 〜 1.0の範囲
-            pulse.style.opacity = opacity;
-        }
+        // 音量レベルに応じて画像のサイズを変更
+        const scale = 1 + (level * 0.2); // 1.0 〜 1.2の範囲
+        agentImage.style.transform = `scale(${scale})`;
     }
 
     // デバッグ情報表示

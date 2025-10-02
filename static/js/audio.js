@@ -7,6 +7,7 @@ class AudioManager {
         this.analyser = null;
         this.microphone = null;
         this.isRecording = false;
+        this.isProcessing = false; // 重複処理を防ぐフラグ
         this.isMuted = false;
         this.audioChunks = [];
         this.lastFlushAt = 0;
@@ -262,15 +263,27 @@ class AudioManager {
 
     async handleRecordingComplete() {
         try {
+            // 重複呼び出しを防ぐガード
+            if (this.isProcessing) {
+                console.warn('Already processing recording, skipping duplicate call');
+                return;
+            }
+
             if (this.audioChunks.length === 0) {
                 console.warn('No audio data recorded');
                 return;
             }
 
+            // 処理中フラグを立てる
+            this.isProcessing = true;
+
             // 音声データをBlobに変換
             const audioBlob = new Blob(this.audioChunks, {
                 type: this.getSupportedMimeType()
             });
+
+            // バッファを即座にクリア（重複送信を防ぐ）
+            this.audioChunks = [];
 
             // WAV形式に変換（必要に応じて）
             const audioBuffer = await this.convertToWAV(audioBlob);
@@ -280,12 +293,14 @@ class AudioManager {
 
             console.log('Audio recording processed:', audioBuffer.byteLength, 'bytes');
 
-            // 次の録音のためにバッファリセット
-            this.audioChunks = [];
             this.lastFlushAt = Date.now();
+
+            // 処理完了フラグをリセット
+            this.isProcessing = false;
 
         } catch (error) {
             console.error('Failed to handle recording completion:', error);
+            this.isProcessing = false;
         }
     }
 

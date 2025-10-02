@@ -46,6 +46,7 @@ class TextToSpeech:
         self.config = {
             "provider": "openai",  # openai, gtts, browser
             "voice_id": "default",
+            "voice": "alloy",  # OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer
             "model": "eleven_monolingual_v1",
             "stability": 0.5,
             "similarity_boost": 0.75,
@@ -340,9 +341,10 @@ class TextToSpeech:
             logger.debug(f"Synthesizing with OpenAI TTS: {text[:50]}...")
 
             # OpenAI TTS API呼び出し
+            voice = self.config.get("voice", "alloy")
             response = self.openai_client.audio.speech.create(
                 model="tts-1",  # tts-1 または tts-1-hd
-                voice="alloy",  # alloy, echo, fable, onyx, nova, shimmer
+                voice=voice,  # alloy, echo, fable, onyx, nova, shimmer
                 input=text,
                 response_format="mp3"
             )

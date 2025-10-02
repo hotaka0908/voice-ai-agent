@@ -33,6 +33,12 @@ class ToolRegistry:
             "mobile_bridge": "src.tools.mobile_bridge_tool:MobileBridgeTool",
             "mcp": "src.tools.mcp_tool:MCPTool",
             "gmail": "src.tools.gmail_tool:GmailTool",
+            "calendar": "src.tools.calendar_tool:CalendarTool",
+            "alarm": "src.tools.alarm_tool:AlarmTool",
+            "aircon": "src.tools.dummy_tools:AirconTool",
+            "light": "src.tools.dummy_tools:LightTool",
+            "taxi": "src.tools.dummy_tools:TaxiTool",
+            "robot": "src.tools.dummy_tools:RobotTool",
         }
 
     async def initialize(self):
@@ -92,6 +98,12 @@ class ToolRegistry:
         _try_import(lambda: __import__('src.tools.mobile_bridge_tool', fromlist=['MobileBridgeTool']).MobileBridgeTool, 'mobile_bridge')
         _try_import(lambda: __import__('src.tools.mcp_tool', fromlist=['MCPTool']).MCPTool, 'mcp')
         _try_import(lambda: __import__('src.tools.gmail_tool', fromlist=['GmailTool']).GmailTool, 'gmail')
+        _try_import(lambda: __import__('src.tools.calendar_tool', fromlist=['CalendarTool']).CalendarTool, 'calendar')
+        _try_import(lambda: __import__('src.tools.alarm_tool', fromlist=['AlarmTool']).AlarmTool, 'alarm')
+        _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['AirconTool']).AirconTool, 'aircon')
+        _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['LightTool']).LightTool, 'light')
+        _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['TaxiTool']).TaxiTool, 'taxi')
+        _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['RobotTool']).RobotTool, 'robot')
 
         # インスタンス化して登録
         for tool_cls in tool_classes:

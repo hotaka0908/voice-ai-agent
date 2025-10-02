@@ -458,7 +458,8 @@ class HybridLLM:
         memories: List[Dict],
         available_tools: List[Dict],
         memory_tool=None,
-        context_manager=None
+        context_manager=None,
+        ai_mode: str = "assist"
     ) -> Dict[str, Any]:
         """
         ツール使用を含む複雑な処理
@@ -468,6 +469,7 @@ class HybridLLM:
             context: 会話コンテキスト
             memories: 関連する記憶
             available_tools: 利用可能なツール
+            ai_mode: AIモード (assist/auto)
 
         Returns:
             処理結果（応答テキスト、ツール呼び出し等）
@@ -477,7 +479,7 @@ class HybridLLM:
 
         try:
             # システムプロンプトの構築
-            system_prompt = self._build_system_prompt(available_tools, memories, memory_tool, context, context_manager)
+            system_prompt = self._build_system_prompt(available_tools, memories, memory_tool, context, context_manager, ai_mode)
 
             # メッセージの構築
             messages = [
@@ -543,13 +545,35 @@ class HybridLLM:
                 "error": str(e)
             }
 
-    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None, context=None, context_manager=None) -> str:
+    def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None, context=None, context_manager=None, ai_mode: str = "assist") -> str:
         """システムプロンプトを構築"""
-        prompt_parts = [
-            "あなたはパーソナライズされた音声AIアシスタントです。",
-            "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
-            "質問に親しみやすく端的に答えてください。",
-        ]
+
+        # モード別の基本指示
+        if ai_mode == "auto":
+            prompt_parts = [
+                "あなたはパーソナライズされた音声AIアシスタントです（全自動モード）。",
+                "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
+                "質問に親しみやすく端的に答えてください。",
+                "",
+                "🔥 全自動モードの重要な指示:",
+                "- ユーザーの明示的な指示がなくても、会話の文脈から意図を推測し、必要なツールを積極的に使用してください",
+                "- ユーザーの潜在的なニーズを先回りして予測し、プロアクティブに行動してください",
+                "- 例: 「おはよう」→ 未読メールチェック、天気情報取得、今日の予定確認",
+                "- 例: 「忙しい」→ 今日の重要なタスク確認、リマインダー設定",
+                "- 例: 挨拶や雑談の際も、時間帯や文脈に応じて有用な情報を自動的に提供",
+                "- 実行したアクションは必ずテーブルに記録されるので、積極的にツールを使用してください",
+            ]
+        else:  # assist mode
+            prompt_parts = [
+                "あなたはパーソナライズされた音声AIアシスタントです（アシストモード）。",
+                "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
+                "質問に親しみやすく端的に答えてください。",
+                "",
+                "📋 アシストモードの重要な指示:",
+                "- ユーザーの明示的な指示に従ってツールを使用してください",
+                "- 指示がない場合は、情報を提供したり質問に答えたりしてください",
+                "- 必要に応じて、ツールの使用を提案することはできますが、勝手に実行しないでください",
+            ]
 
         # 個人情報があれば追加し、積極的に活用
         if memory_tool:
@@ -619,6 +643,24 @@ class HybridLLM:
 
                     prompt_parts.append("  ⚠️ 重要: message_idには実際に取得したメールのIDを使用してください。「メールID」「メッセージID」等のプレースホルダー文字列は絶対に使用禁止です。")
                     prompt_parts.append("  - 返信内容はユーザーの指示に忠実に従い、適切な敬語を使用してください")
+
+                # アラームツールの場合は詳細な使用例を追加
+                if tool['name'] == 'alarm':
+                    prompt_parts.append("  🔔 アラームツール:")
+                    prompt_parts.append("  「アラームをセットして」「〇時に起こして」「〇時にリマインドして」等の要求があった場合は必ずこのツールを使用してください")
+                    prompt_parts.append("  - アラーム設定: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"set\", \"time\": \"HH:MM\", \"message\": \"読み上げメッセージ\", \"label\": \"アラーム\", \"repeat\": false}}")
+                    prompt_parts.append("  - アラーム一覧: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"list\"}}")
+                    prompt_parts.append("  - アラーム削除: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"delete\", \"alarm_id\": \"アラームID\"}}")
+                    prompt_parts.append("  ")
+                    prompt_parts.append("  🔥 アラーム設定の重要な指示:")
+                    prompt_parts.append("  - ユーザーが時刻を指定した場合:")
+                    prompt_parts.append("    例1: 「7時に起こして」→ time=\"07:00\", message=\"起きる時間です\"")
+                    prompt_parts.append("    例2: \"14時半にアラーム\"→ time=\"14:30\", message=\"アラーム\"")
+                    prompt_parts.append("    例3: \"18時にリマインドして\"→ time=\"18:00\", message=\"リマインダー\"")
+                    prompt_parts.append("  - ユーザーが具体的なメッセージを指定した場合はそれを使用:")
+                    prompt_parts.append("    例: 「7時に薬を飲むとリマインドして」→ message=\"薬を飲む時間です\"")
+                    prompt_parts.append("  - 時刻は必ずHH:MM形式（24時間制）で指定してください")
+                    prompt_parts.append("  ⚠️ 重要: アラーム設定後は「〇時にアラームを設定しました」と確認メッセージを返してください")
 
             prompt_parts.append(
                 "\n重要: ツールを使用する場合は、必ず正確な形式で指示してください。"
@@ -732,9 +774,24 @@ class HybridLLM:
                 except Exception as extract_error:
                     logger.error(f"❌ Tool call extraction also failed: {extract_error}")
 
-        logger.info(f"🎯 Final result: {len(tool_calls)} tool calls parsed successfully")
-        logger.debug(f"Parsed tool calls: {tool_calls}")
-        return tool_calls
+        # 重複するツール呼び出しを除外（内容ベースで比較）
+        unique_tool_calls = []
+        seen_calls = set()
+
+        for tool_call in tool_calls:
+            # ツール呼び出しを識別可能な文字列に変換
+            call_signature = json.dumps(tool_call, sort_keys=True, ensure_ascii=False)
+
+            if call_signature not in seen_calls:
+                seen_calls.add(call_signature)
+                unique_tool_calls.append(tool_call)
+                logger.info(f"✅ Added unique tool call: {tool_call}")
+            else:
+                logger.warning(f"⚠️ Skipped duplicate tool call: {tool_call}")
+
+        logger.info(f"🎯 Final result: {len(unique_tool_calls)} unique tool calls (removed {len(tool_calls) - len(unique_tool_calls)} duplicates)")
+        logger.debug(f"Final tool_calls: {unique_tool_calls}")
+        return unique_tool_calls
 
     def _fix_json(self, json_str: str):
         """不完全なJSONを修復"""
@@ -811,9 +868,35 @@ class HybridLLM:
                     params['query'] = query_match.group(1)
                     logger.debug(f"Extracted query: '{params['query']}'")
 
+                # Alarm関連パラメータ
+                time_match = re.search(r'"time":\s*"([^"]*)"', original_str)
+                if time_match:
+                    params['time'] = time_match.group(1)
+                    logger.debug(f"Extracted time: '{params['time']}'")
+
+                message_match = re.search(r'"message":\s*"([^"]*)"', original_str)
+                if message_match:
+                    params['message'] = message_match.group(1)
+                    logger.debug(f"Extracted message: '{params['message']}'")
+
+                label_match = re.search(r'"label":\s*"([^"]*)"', original_str)
+                if label_match:
+                    params['label'] = label_match.group(1)
+                    logger.debug(f"Extracted label: '{params['label']}'")
+
+                repeat_match = re.search(r'"repeat":\s*(true|false)', original_str)
+                if repeat_match:
+                    params['repeat'] = repeat_match.group(1) == 'true'
+                    logger.debug(f"Extracted repeat: {params['repeat']}")
+
+                alarm_id_match = re.search(r'"alarm_id":\s*"([^"]*)"', original_str)
+                if alarm_id_match:
+                    params['alarm_id'] = alarm_id_match.group(1)
+                    logger.debug(f"Extracted alarm_id: '{params['alarm_id']}'")
+
                 # 再構築されたJSONを作成
                 fixed = {"name": name, "parameters": params}
-                fixed_json = json.dumps(fixed)
+                fixed_json = json.dumps(fixed, ensure_ascii=False)
                 logger.info(f"✅ Manually reconstructed JSON: '{fixed_json}'")
                 return fixed_json
 
@@ -1015,6 +1098,23 @@ class HybridLLM:
 
         old_config = self.config.copy()
         self.config.update(config)
+
+        # モデルが変更された場合、該当プロバイダーを再初期化
+        if "model" in config:
+            provider_name = self.config.get("primary_provider")
+            if provider_name and provider_name in self.providers:
+                provider = self.providers[provider_name]
+                if provider_name == "claude":
+                    await provider.initialize({
+                        "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
+                        "model": config["model"]
+                    })
+                elif provider_name == "openai":
+                    await provider.initialize({
+                        "openai_api_key": os.getenv("OPENAI_API_KEY"),
+                        "model": config["model"]
+                    })
+                logger.info(f"Model updated to {config['model']} for provider {provider_name}")
 
         # プロバイダーが変更された場合は再初期化
         if (old_config.get("primary_provider") != self.config.get("primary_provider") or

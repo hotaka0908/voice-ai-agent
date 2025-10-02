@@ -11,30 +11,17 @@
     <div class="container">
         <header class="header">
             <h1>音声AIエージェント</h1>
+            <div class="header-image">
+                <div class="image-container">
+                    <img src="/static/images/fishw.png" alt="AI Agent" class="agent-image" id="agentImage">
+                    <div class="image-overlay" id="imageOverlay">
+                        <span class="overlay-text" id="overlayText">タッチで話しかけて</span>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <main class="main">
-            <!-- 音声認識状態表示 -->
-            <div class="voice-status" id="voiceStatus">
-                <div class="status-indicator" id="statusIndicator">
-                    <div class="face">
-                        <div class="eyes">
-                            <div class="eye"></div>
-                            <div class="eye"></div>
-                        </div>
-                        <div class="mouth" id="mouth"></div>
-                    </div>
-                </div>
-                <p class="status-text" id="statusText">マイクボタンを押して話しかけてください</p>
-            </div>
-
-            <!-- 音声コントロール -->
-            <div class="voice-controls">
-                <button id="micButton" class="mic-button" title="マイクのON/OFF">
-                    🎤
-                </button>
-            </div>
-
             <!-- 会話履歴 -->
             <div class="conversation" id="conversation">
                 <div class="message assistant">
@@ -59,6 +46,162 @@
                 <button id="closeSettingsButton" class="close-settings-button" title="設定を閉じる">✕</button>
             </div>
 
+
+            <!-- AIモード設定セクション -->
+            <div class="mode-settings-section">
+                <div class="settings-section-header">
+                    <h3>🎯 AIモード設定</h3>
+                </div>
+
+                <div class="mode-settings-content">
+                    <!-- モード選択 -->
+                    <div class="input-group">
+                        <label class="setting-label">動作モード</label>
+                        <select id="aiMode" class="modern-select">
+                            <option value="assist">アシストモード</option>
+                            <option value="auto">全自動モード</option>
+                        </select>
+                    </div>
+
+                    <button id="applyModeSettings" class="modern-save-btn">
+                        適用
+                    </button>
+
+                    <div class="current-model-info" id="currentModeInfo">
+                        <span class="info-label">現在:</span>
+                        <span class="info-value" id="currentModeValue">読み込み中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LLMモデル設定セクション -->
+            <div class="llm-settings-section">
+                <div class="settings-section-header">
+                    <h3>🤖 AIモデル設定</h3>
+                </div>
+
+                <div class="llm-settings-content">
+                    <!-- プロバイダー選択 -->
+                    <div class="input-group">
+                        <label class="setting-label">AIプロバイダー</label>
+                        <select id="llmProvider" class="modern-select">
+                            <option value="claude">Claude (Anthropic)</option>
+                            <option value="openai">ChatGPT (OpenAI)</option>
+                        </select>
+                    </div>
+
+                    <button id="applyLLMSettings" class="modern-save-btn">
+                        適用
+                    </button>
+
+                    <div class="current-model-info" id="currentModelInfo">
+                        <span class="info-label">現在:</span>
+                        <span class="info-value" id="currentModelValue">読み込み中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ボイス設定セクション -->
+            <div class="voice-settings-section">
+                <div class="settings-section-header">
+                    <h3>🎙️ ボイス設定</h3>
+                </div>
+
+                <div class="voice-settings-content">
+                    <!-- ボイス選択 -->
+                    <div class="input-group">
+                        <label class="setting-label">ボイス</label>
+                        <select id="voiceSelect" class="modern-select">
+                            <option value="alloy">女性</option>
+                            <option value="echo">男性</option>
+                            <option value="fable">五条悟</option>
+                            <option value="shimmer">初音ミク</option>
+                        </select>
+                    </div>
+
+                    <button id="applyVoiceSettings" class="modern-save-btn">
+                        適用
+                    </button>
+
+                    <div class="current-model-info" id="currentVoiceInfo">
+                        <span class="info-label">現在:</span>
+                        <span class="info-value" id="currentVoiceValue">読み込み中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ツール一覧セクション -->
+            <div class="tools-section">
+                <div class="tools-header">
+                    <h3>🛠️ 利用可能なツール</h3>
+                </div>
+
+                <div class="tools-list" id="toolsList">
+                    <div class="tools-loading">
+                        <div class="spinner"></div>
+                        <p>読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- テーブルセクション -->
+            <div class="table-section">
+                <div class="table-header">
+                    <h3>📊 テーブル</h3>
+                </div>
+
+                <div class="table-list" id="tableList">
+                    <div class="table-empty">
+                        <p>タスクはありません</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 連絡先セクション -->
+            <div class="contacts-section">
+                <div class="contacts-header">
+                    <h3>📞 連絡</h3>
+                </div>
+
+                <div class="contacts-list" id="contactsList">
+                    <div class="contact-item">
+                        <span class="contact-name">かずき</span>
+                        <div class="contact-actions">
+                            <button class="contact-btn phone-btn" title="電話をかける">📞</button>
+                            <button class="contact-btn voice-btn" title="ボイスメッセージ">🎤</button>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <span class="contact-name">こうき</span>
+                        <div class="contact-actions">
+                            <button class="contact-btn phone-btn" title="電話をかける">📞</button>
+                            <button class="contact-btn voice-btn" title="ボイスメッセージ">🎤</button>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <span class="contact-name">みほ</span>
+                        <div class="contact-actions">
+                            <button class="contact-btn phone-btn" title="電話をかける">📞</button>
+                            <button class="contact-btn voice-btn" title="ボイスメッセージ">🎤</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 性格タイプセクション -->
+            <div class="personality-section">
+                <div class="personality-header">
+                    <h3>あなたの性格タイプ</h3>
+                    <button id="refreshPersonality" class="refresh-btn" title="性格タイプを更新">🔄</button>
+                </div>
+
+                <div class="personality-card" id="personalityCard">
+                    <div class="personality-loading">
+                        <div class="spinner"></div>
+                        <p>分析中...</p>
+                    </div>
+                </div>
+            </div>
 
             <!-- 個人情報セクション -->
             <div class="profile-section">
@@ -94,21 +237,6 @@
                 </div>
             </div>
 
-            <!-- 性格タイプセクション -->
-            <div class="personality-section">
-                <div class="personality-header">
-                    <h3>あなたの性格タイプ</h3>
-                    <button id="refreshPersonality" class="refresh-btn" title="性格タイプを更新">🔄</button>
-                </div>
-
-                <div class="personality-card" id="personalityCard">
-                    <div class="personality-loading">
-                        <div class="spinner"></div>
-                        <p>分析中...</p>
-                    </div>
-                </div>
-            </div>
-
         </div>
 
 
@@ -125,6 +253,65 @@
         <div class="status-bar" id="statusBar">
             <span id="connectionStatus">接続中...</span>
             <span id="systemStatus">システム準備中</span>
+        </div>
+    </div>
+
+    <!-- アラーム設定ダイアログ -->
+    <div id="alarmDialog" class="alarm-dialog" style="display: none;">
+        <div class="alarm-dialog-content">
+            <div class="alarm-dialog-header">
+                <h3>🔔 アラーム設定</h3>
+                <button id="closeAlarmDialog" class="close-dialog-btn">&times;</button>
+            </div>
+            <div class="alarm-dialog-body">
+                <div class="alarm-input-group">
+                    <label>時刻</label>
+                    <input type="time" id="alarmTime" class="alarm-input" required>
+                </div>
+                <div class="alarm-input-group">
+                    <label>メッセージ</label>
+                    <textarea id="alarmMessage" class="alarm-textarea" placeholder="読み上げるメッセージを入力してください" rows="3"></textarea>
+                </div>
+                <div class="alarm-input-group">
+                    <label>
+                        <input type="checkbox" id="alarmRepeat">
+                        毎日繰り返す
+                    </label>
+                </div>
+            </div>
+            <div class="alarm-dialog-footer">
+                <button id="cancelAlarmBtn" class="alarm-btn alarm-btn-secondary">キャンセル</button>
+                <button id="setAlarmBtn" class="alarm-btn alarm-btn-primary">設定</button>
+            </div>
+
+            <!-- アラーム一覧 -->
+            <div class="alarm-list-section">
+                <h4>設定済みアラーム</h4>
+                <div id="alarmList" class="alarm-list">
+                    <p class="alarm-empty">設定されているアラームはありません</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gmail情報ダイアログ -->
+    <div id="gmailDialog" class="alarm-dialog" style="display: none;">
+        <div class="alarm-dialog-content">
+            <div class="alarm-dialog-header">
+                <h3>📧 Gmail連携情報</h3>
+                <button id="closeGmailDialog" class="close-dialog-btn">&times;</button>
+            </div>
+            <div class="alarm-dialog-body">
+                <div class="gmail-info-section">
+                    <div class="gmail-status" id="gmailStatus">
+                        <div class="spinner"></div>
+                        <p>読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="alarm-dialog-footer">
+                <button id="closeGmailInfoBtn" class="alarm-btn alarm-btn-primary">閉じる</button>
+            </div>
         </div>
     </div>
 

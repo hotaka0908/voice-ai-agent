@@ -289,6 +289,110 @@ class MemoryTool(Tool):
 
         return personal_info
 
+    async def set_ai_mode(self, mode: str):
+        """AIモードを設定"""
+        logger.info(f"Setting AI mode: {mode}")
+
+        self.memory_storage["ai_mode"] = {
+            "value": mode,
+            "timestamp": datetime.now().isoformat(),
+            "category": "settings"
+        }
+
+        # ファイルに保存
+        await self._persist_memory()
+        logger.info(f"AI mode set to: {mode}")
+
+    async def get_ai_mode(self) -> str:
+        """AIモードを取得"""
+        if "ai_mode" in self.memory_storage:
+            return self.memory_storage["ai_mode"].get("value", "assist")
+        return "assist"  # デフォルトはアシストモード
+
+    async def get_table_tasks(self) -> List[Dict[str, Any]]:
+        """テーブルタスク一覧を取得"""
+        tasks = []
+        for key, entry in self.memory_storage.items():
+            if key.startswith("table_task_") and entry.get("category") == "table_task":
+                tasks.append({
+                    "id": key,
+                    "title": entry.get("title", ""),
+                    "content": entry.get("content", ""),
+                    "status": entry.get("status", "processing"),
+                    "result": entry.get("result", ""),
+                    "created_at": entry.get("timestamp", "")
+                })
+
+        # 新しい順にソート
+        tasks.sort(key=lambda x: x["created_at"], reverse=True)
+        return tasks
+
+    async def add_table_task(self, title: str, content: str, status: str = "processing") -> Dict[str, Any]:
+        """テーブルタスクを追加"""
+        import time
+        task_id = f"table_task_{int(time.time() * 1000)}"
+
+        task = {
+            "title": title,
+            "content": content,
+            "status": status,
+            "result": "",
+            "timestamp": datetime.now().isoformat(),
+            "category": "table_task"
+        }
+
+        self.memory_storage[task_id] = task
+        await self._persist_memory()
+
+        logger.info(f"Table task added: {task_id} - {title}")
+
+        return {
+            "id": task_id,
+            "title": title,
+            "content": content,
+            "status": status,
+            "result": "",
+            "created_at": task["timestamp"]
+        }
+
+    async def update_table_task(self, task_id: str, status: str, result: str = ""):
+        """テーブルタスクを更新"""
+        if task_id in self.memory_storage:
+            self.memory_storage[task_id]["status"] = status
+            if result:
+                self.memory_storage[task_id]["result"] = result
+            self.memory_storage[task_id]["updated_at"] = datetime.now().isoformat()
+
+            await self._persist_memory()
+            logger.info(f"Table task updated: {task_id} - {status}")
+
+    async def save_conversation(self, user_message: str, assistant_message: str):
+        """会話履歴をメモリに保存"""
+        import time
+        timestamp = int(time.time() * 1000)
+
+        # ユーザーメッセージを保存
+        user_key = f"conversation_user_{timestamp}"
+        self.memory_storage[user_key] = {
+            "value": user_message,
+            "timestamp": datetime.now().isoformat(),
+            "category": "conversation",
+            "role": "user"
+        }
+
+        # アシスタントメッセージを保存
+        assistant_key = f"conversation_assistant_{timestamp}"
+        self.memory_storage[assistant_key] = {
+            "value": assistant_message,
+            "timestamp": datetime.now().isoformat(),
+            "category": "conversation",
+            "role": "assistant"
+        }
+
+        # ファイルに保存
+        await self._persist_memory()
+        logger.debug(f"Conversation saved: user='{user_message[:50]}...', assistant='{assistant_message[:50]}...'")
+
     async def analyze_personality_type(self) -> Dict[str, Any]:
         """過去の会話履歴から性格タイプを分析"""
         try:
@@ -306,6 +410,32 @@ class MemoryTool(Tool):
             # メモリから会話パターンを分析
             for key, entry in self.memory_storage.items():
                 value = entry.get("value", "").lower()
+                category = entry.get("category", "")
+
+                # 個人情報からも基本的な分析を行う
+                if category == "personal_info":
+                    # 趣味から傾向を分析
+                    if "hobbies" in key:
+                        if any(word in value for word in ["読書", "学習", "勉強", "研究"]):
+                            personality_traits["curious"] += 2
+                            personality_traits["analytical"] += 1
+                        if any(word in value for word in ["スポーツ", "運動", "旅行", "アウトドア"]):
+                            personality_traits["friendly"] += 2
+                        if any(word in value for word in ["絵", "音楽", "写真", "デザイン", "創作"]):
+                            personality_traits["creative"] += 2
+
+                    # 職業から傾向を分析
+                    if "occupation" in key:
+                        if any(word in value for word in ["エンジニア", "開発", "プログラマ", "技術"]):
+                            personality_traits["analytical"] += 2
+                            personality_traits["practical"] += 1
+                        if any(word in value for word in ["デザイナ", "アーティスト", "クリエイター"]):
+                            personality_traits["creative"] += 2
+                        if any(word in value for word in ["営業", "接客", "販売", "教師"]):
+                            personality_traits["friendly"] += 2
+                        if any(word in value for word in ["経営", "社長", "マネージャ"]):
+                            personality_traits["practical"] += 2
+                            personality_traits["analytical"] += 1
 
                 # キーワード分析
                 if any(word in value for word in ["ありがとう", "感謝", "嬉しい", "楽しい", "好き"]):
@@ -387,11 +517,30 @@ class MemoryTool(Tool):
             total_interactions = sum(personality_traits.values())
             confidence = min(100, (total_interactions / 20) * 100)  # 20回の会話で100%
 
+            # 分析データの追加
+            analysis_data = {
+                "message_count": len(self.memory_storage),
+                "data_sources": {
+                    "personal_info": sum(1 for k, v in self.memory_storage.items() if v.get("category") == "personal_info"),
+                    "conversations": sum(1 for k, v in self.memory_storage.items() if v.get("category") == "conversation"),
+                    "other": sum(1 for k, v in self.memory_storage.items() if v.get("category") not in ["personal_info", "conversation"])
+                },
+                "trait_scores": {
+                    "友好的": personality_traits["friendly"],
+                    "分析的": personality_traits["analytical"],
+                    "創造的": personality_traits["creative"],
+                    "実用的": personality_traits["practical"],
+                    "好奇心旺盛": personality_traits["curious"],
+                    "穏やか": personality_traits["reserved"]
+                }
+            }
+
             return {
                 **personality_type,
                 "confidence": round(confidence, 1),
                 "scores": personality_traits,
-                "total_interactions": total_interactions
+                "total_interactions": total_interactions,
+                "analysis_data": analysis_data
             }
 
         except Exception as e:

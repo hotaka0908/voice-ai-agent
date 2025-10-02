@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from src.core.agent import VoiceAgent
 from src.core.websocket_manager import WebSocketManager
+from src.core.tool_base import ToolResult
 
 # 環境変数の読み込み
 load_dotenv()
@@ -263,6 +264,426 @@ async def get_personality_type():
     except Exception as e:
         logger.error(f"Failed to get personality type: {e}")
         return {"error": str(e)}
+
+
+@app.get("/api/llm/models")
+async def get_available_models():
+    """利用可能なLLMモデル一覧を取得"""
+    return {
+        "claude": [
+            {"value": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet (最新)", "description": "最も高性能なモデル"},
+            {"value": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku (高速)", "description": "高速で低コスト"},
+            {"value": "claude-3-opus-20240229", "label": "Claude 3 Opus (高性能)", "description": "Claude 3の最高性能モデル"},
+            {"value": "claude-3-sonnet-20240229", "label": "Claude 3 Sonnet (バランス)", "description": "性能とコストのバランス"},
+            {"value": "claude-3-haiku-20240307", "label": "Claude 3 Haiku (高速・低コスト)", "description": "最も高速で低コスト"}
+        ],
+        "openai": [
+            {"value": "gpt-4o", "label": "GPT-4o (最新・最速)", "description": "最新の高性能モデル"},
+            {"value": "gpt-4o-mini", "label": "GPT-4o Mini (高速・低コスト)", "description": "GPT-4oの小型版"},
+            {"value": "gpt-4-turbo", "label": "GPT-4 Turbo", "description": "GPT-4の高速版"},
+            {"value": "gpt-4", "label": "GPT-4", "description": "標準のGPT-4"},
+            {"value": "gpt-3.5-turbo", "label": "GPT-3.5 Turbo", "description": "高速で低コスト"}
+        ]
+    }
+
+
+@app.get("/api/llm/current")
+async def get_current_llm_config():
+    """現在のLLM設定を取得"""
+    try:
+        status = await app.state.voice_agent.llm.get_status()
+        return {
+            "provider": status.get("primary_provider"),
+            "model": status.get("providers", {}).get(status.get("primary_provider"), {}).get("model"),
+            "available_providers": [p for p, info in status.get("providers", {}).items() if info.get("available")]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get current LLM config: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/llm/switch")
+async def switch_llm_model(request: dict):
+    """LLMモデルを切り替え"""
+    try:
+        provider = request.get("provider")
+        model = request.get("model")
+
+        if not provider or not model:
+            return {"error": "Provider and model are required"}
+
+        # LLM設定を更新
+        config = {
+            "primary_provider": provider,
+            "model": model
+        }
+
+        await app.state.voice_agent.llm.update_config(config)
+
+        logger.info(f"LLM switched to {provider}/{model}")
+
+        return {
+            "success": True,
+            "provider": provider,
+            "model": model,
+            "message": f"{provider}の{model}に切り替えました"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to switch LLM model: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/tools")
+async def get_available_tools():
+    """利用可能なツール一覧を取得"""
+    try:
+        tools = app.state.voice_agent.tools.get_available_tools()
+        return {"tools": tools}
+    except Exception as e:
+        logger.error(f"Failed to get tools: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/voice/current")
+async def get_current_voice():
+    """現在のボイス設定を取得"""
+    try:
+        voice = app.state.voice_agent.tts.config.get("voice", "alloy")
+        return {
+            "voice": voice
+        }
+    except Exception as e:
+        logger.error(f"Failed to get current voice: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/voice/switch")
+async def switch_voice(request: dict):
+    """ボイスを切り替え"""
+    try:
+        voice = request.get("voice")
+
+        if not voice:
+            return {"error": "Voice is required"}
+
+        # ボイス設定を更新
+        app.state.voice_agent.tts.config["voice"] = voice
+
+        logger.info(f"Voice switched to {voice}")
+
+        return {
+            "success": True,
+            "voice": voice,
+            "message": f"{voice}に切り替えました"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to switch voice: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/mode/current")
+async def get_current_mode():
+    """現在のAIモード設定を取得"""
+    try:
+        # メモリツールから現在のモードを取得
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if memory_tool:
+            mode = await memory_tool.get_ai_mode()
+            return {"mode": mode or "assist"}  # デフォルトはアシストモード
+        return {"mode": "assist"}
+    except Exception as e:
+        logger.error(f"Failed to get current mode: {e}")
+        return {"mode": "assist", "error": str(e)}
+
+
+@app.post("/api/mode/switch")
+async def switch_mode(request: dict):
+    """AIモードを切り替え"""
+    try:
+        mode = request.get("mode")
+
+        if not mode or mode not in ["assist", "auto"]:
+            return {"error": "Valid mode is required (assist, auto)"}
+
+        # メモリツールにモードを保存
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if memory_tool:
+            await memory_tool.set_ai_mode(mode)
+
+        logger.info(f"AI mode switched to {mode}")
+
+        mode_names = {
+            "assist": "アシストモード",
+            "auto": "全自動モード"
+        }
+
+        return {
+            "success": True,
+            "mode": mode,
+            "message": f"{mode_names[mode]}に切り替えました"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to switch mode: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/tts")
+async def text_to_speech(request: dict):
+    """テキストを音声に変換"""
+    try:
+        text = request.get("text")
+
+        if not text:
+            return {"error": "Text is required"}
+
+        # TTSで音声生成
+        audio_data = await app.state.voice_agent.tts.synthesize(text)
+
+        # Base64エンコード
+        import base64
+        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+
+        return {
+            "success": True,
+            "audio": audio_base64
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to synthesize speech: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/alarms/set")
+async def set_alarm(request: dict):
+    """アラームを設定"""
+    try:
+        alarm_tool = app.state.voice_agent.tools.get_tool("alarm")
+        if not alarm_tool:
+            return {"error": "Alarm tool not available"}
+
+        result = await alarm_tool.execute({
+            "action": "set",
+            "time": request.get("time"),
+            "label": request.get("label", "アラーム"),
+            "message": request.get("message", ""),
+            "repeat": request.get("repeat", False)
+        })
+
+        if isinstance(result, ToolResult):
+            if result.success:
+                return {
+                    "success": True,
+                    "alarm": result.result.get("alarm"),
+                    "message": result.result.get("message")
+                }
+            else:
+                return {"error": result.error}
+
+        return {"error": "Unexpected response from alarm tool"}
+
+    except Exception as e:
+        logger.error(f"Failed to set alarm: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/alarms/list")
+async def list_alarms():
+    """アラーム一覧を取得"""
+    try:
+        alarm_tool = app.state.voice_agent.tools.get_tool("alarm")
+        if not alarm_tool:
+            return {"error": "Alarm tool not available"}
+
+        result = await alarm_tool.execute({"action": "list"})
+
+        if isinstance(result, ToolResult):
+            if result.success:
+                return {
+                    "success": True,
+                    "alarms": result.result.get("alarms", []),
+                    "count": result.result.get("count", 0)
+                }
+            else:
+                return {"error": result.error}
+
+        return {"error": "Unexpected response from alarm tool"}
+
+    except Exception as e:
+        logger.error(f"Failed to list alarms: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/alarms/delete")
+async def delete_alarm(request: dict):
+    """アラームを削除"""
+    try:
+        alarm_tool = app.state.voice_agent.tools.get_tool("alarm")
+        if not alarm_tool:
+            return {"error": "Alarm tool not available"}
+
+        result = await alarm_tool.execute({
+            "action": "delete",
+            "alarm_id": request.get("alarm_id")
+        })
+
+        if isinstance(result, ToolResult):
+            if result.success:
+                return {
+                    "success": True,
+                    "message": result.result.get("message")
+                }
+            else:
+                return {"error": result.error}
+
+        return {"error": "Unexpected response from alarm tool"}
+
+    except Exception as e:
+        logger.error(f"Failed to delete alarm: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/table/tasks")
+async def get_table_tasks():
+    """テーブルタスク一覧を取得"""
+    try:
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if not memory_tool:
+            return {"success": False, "error": "Memory tool not available", "tasks": []}
+
+        tasks = await memory_tool.get_table_tasks()
+        return {
+            "success": True,
+            "tasks": tasks
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get table tasks: {e}")
+        return {"success": False, "error": str(e), "tasks": []}
+
+
+@app.post("/api/table/tasks/add")
+async def add_table_task(request: dict):
+    """テーブルタスクを追加"""
+    try:
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if not memory_tool:
+            return {"success": False, "error": "Memory tool not available"}
+
+        task = await memory_tool.add_table_task(
+            title=request.get("title"),
+            content=request.get("content"),
+            status=request.get("status", "processing")
+        )
+
+        return {
+            "success": True,
+            "task": task
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to add table task: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/table/tasks/update")
+async def update_table_task(request: dict):
+    """テーブルタスクを更新"""
+    try:
+        memory_tool = app.state.voice_agent.tools.get_tool("memory")
+        if not memory_tool:
+            return {"success": False, "error": "Memory tool not available"}
+
+        await memory_tool.update_table_task(
+            task_id=request.get("task_id"),
+            status=request.get("status"),
+            result=request.get("result", "")
+        )
+
+        return {
+            "success": True
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update table task: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/alarms/trigger")
+async def trigger_alarm(request: dict):
+    """アラームを発動してAIエージェントに読み上げさせる"""
+    try:
+        message = request.get("message", "アラームの時間です")
+
+        # TTSで音声生成（ファイルパスが返される）
+        audio_path = await app.state.voice_agent.tts.synthesize(message)
+
+        if not audio_path:
+            raise Exception("TTS synthesis failed - no audio path returned")
+
+        # ファイルパスから実際のファイルパスに変換（/data/xxx -> ./data/xxx）
+        if audio_path.startswith("/data/"):
+            actual_path = "." + audio_path
+        else:
+            actual_path = audio_path
+
+        # ファイルを読み込んでBase64エンコード
+        import base64
+        with open(actual_path, 'rb') as f:
+            audio_bytes = f.read()
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+        return {
+            "success": True,
+            "audio": audio_base64,
+            "text": message
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to trigger alarm: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.get("/api/gmail/info")
+async def get_gmail_info():
+    """Gmail連携情報を取得"""
+    try:
+        gmail_tool = app.state.voice_agent.tools.get_tool("gmail")
+        if not gmail_tool:
+            return {"connected": False, "error": "Gmail tool not available"}
+
+        # まだ認証されていない場合は認証を試みる
+        if not gmail_tool.service:
+            await gmail_tool._authenticate()
+
+        # GmailツールのAPIクライアントから認証情報を取得
+        if hasattr(gmail_tool, 'service') and gmail_tool.service:
+            # 認証済みの場合、ユーザー情報を取得
+            try:
+                # Gmail APIでユーザープロフィールを取得
+                profile = gmail_tool.service.users().getProfile(userId='me').execute()
+                email_address = profile.get('emailAddress')
+
+                return {
+                    "connected": True,
+                    "email": email_address
+                }
+            except Exception as e:
+                logger.error(f"Failed to get Gmail profile: {e}")
+                return {"connected": False, "error": "Failed to get email address"}
+        else:
+            return {"connected": False, "error": "Gmail not authenticated"}
+
+    except Exception as e:
+        logger.error(f"Failed to get Gmail info: {e}")
+        return {"connected": False, "error": str(e)}
 
 
 if __name__ == "__main__":

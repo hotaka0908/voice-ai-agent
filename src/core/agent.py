@@ -138,6 +138,10 @@ class VoiceAgent:
                 # 記憶への保存
                 await self.memory.store_interaction(text, final_response)
 
+                # 会話履歴を保存（性格分析用）
+                if memory_tool:
+                    await memory_tool.save_conversation(text, final_response)
+
                 # 音声合成
                 audio_url = await self.tts.synthesize(final_response)
 
@@ -167,6 +171,11 @@ class VoiceAgent:
 
                 await self.context.add_assistant_message(final_response)
                 await self.memory.store_interaction(text, final_response)
+
+                # 会話履歴を保存（性格分析用）
+                if memory_tool:
+                    await memory_tool.save_conversation(text, final_response)
+
                 audio_url = await self.tts.synthesize(final_response)
 
                 return {
@@ -181,6 +190,10 @@ class VoiceAgent:
             # 記憶からの関連情報取得
             relevant_memories = await self.memory.search_relevant(text)
 
+            # 現在のAIモードを取得
+            ai_mode = await memory_tool.get_ai_mode() if memory_tool else "assist"
+            logger.info(f"Current AI mode: {ai_mode}")
+
             # 4. LLMで意図理解とツール選択
             # メモリツールは既に取得済み
 
@@ -190,13 +203,29 @@ class VoiceAgent:
                 memories=relevant_memories,
                 available_tools=self.tools.get_available_tools(),
                 memory_tool=memory_tool,
-                context_manager=self.context
+                context_manager=self.context,
+                ai_mode=ai_mode
             )
 
             # 5. ツールの実行（必要な場合）
             logger.debug(f"LLM response tool_calls: {llm_response.get('tool_calls')}")
             if llm_response.get("tool_calls"):
                 logger.info(f"Executing {len(llm_response['tool_calls'])} tools")
+
+                # 全自動モードの場合、テーブルタスクを作成
+                if ai_mode == "auto" and memory_tool:
+                    task_title = f"自動実行: {text[:30]}..."
+                    task_content = f"ユーザー入力: {text}\nツール: {', '.join([tc.get('name', '') for tc in llm_response['tool_calls']])}"
+                    table_task = await memory_tool.add_table_task(
+                        title=task_title,
+                        content=task_content,
+                        status="processing"
+                    )
+                    task_id = table_task.get("id")
+                    logger.info(f"Created table task for auto mode: {task_id}")
+                else:
+                    task_id = None
+
                 tool_results = await self._execute_tools(llm_response["tool_calls"])
                 logger.debug(f"Tool execution results: {tool_results}")
 
@@ -209,6 +238,16 @@ class VoiceAgent:
                     tool_results=tool_results,
                     context=self.context.get_context()
                 )
+
+                # 全自動モードの場合、テーブルタスクを完了に更新
+                if ai_mode == "auto" and memory_tool and task_id:
+                    result_summary = final_response[:100] + "..." if len(final_response) > 100 else final_response
+                    await memory_tool.update_table_task(
+                        task_id=task_id,
+                        status="completed",
+                        result=result_summary
+                    )
+                    logger.info(f"Updated table task to completed: {task_id}")
             else:
                 logger.warning("No tool calls found in LLM response - AI may generate fake content")
                 final_response = llm_response.get("response", "")
@@ -218,6 +257,10 @@ class VoiceAgent:
 
             # 7. 記憶への保存
             await self.memory.store_interaction(text, final_response)
+
+            # 会話履歴を保存（性格分析用）
+            if memory_tool:
+                await memory_tool.save_conversation(text, final_response)
 
             # 8. 音声合成
             audio_url = await self.tts.synthesize(final_response)

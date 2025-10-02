@@ -47,8 +47,112 @@ body {
 .header h1 {
     font-size: 2.5rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
     color: #000000;
+}
+
+.header-image {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+}
+
+.image-container {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.agent-image {
+    max-width: 350px;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    display: block;
+}
+
+.image-container:hover .agent-image {
+    transform: scale(1.05);
+    box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+.image-overlay {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.overlay-text {
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    animation: pulse-overlay 2s ease-in-out infinite;
+}
+
+@keyframes pulse-overlay {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    25% {
+        opacity: 0.85;
+        transform: scale(1.03);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+    75% {
+        opacity: 0.85;
+        transform: scale(1.03);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 画像の状態別スタイル */
+.agent-image.idle {
+    opacity: 0.9;
+}
+
+.agent-image.listening {
+    opacity: 1;
+    animation: listening-pulse 1.5s infinite;
+}
+
+.agent-image.speaking {
+    opacity: 1;
+    animation: speaking-bounce 0.5s infinite alternate;
+}
+
+@keyframes listening-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 8px 15px -3px rgba(59, 130, 246, 0.5);
+    }
+}
+
+@keyframes speaking-bounce {
+    0% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(1.08);
+    }
 }
 
 .subtitle {
@@ -73,88 +177,6 @@ body {
     box-shadow: var(--shadow);
 }
 
-.status-indicator {
-    width: 120px;
-    height: 120px;
-    margin: 0 auto 1rem;
-    position: relative;
-    border-radius: 50%;
-    background: #ffd8a8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 3px solid #e8c5a0;
-}
-
-.face {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.eyes {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 10px;
-}
-
-.eye {
-    width: 8px;
-    height: 8px;
-    background: #333;
-    border-radius: 50%;
-}
-
-.mouth {
-    width: 20px;
-    height: 10px;
-    border: 2px solid #333;
-    border-top: none;
-    border-radius: 0 0 20px 20px;
-    transition: all 0.3s ease;
-}
-
-.mouth.speaking {
-    animation: speak 0.5s infinite alternate;
-}
-
-.mouth.listening {
-    width: 4px;
-    height: 4px;
-    background: #333;
-    border: none;
-    border-radius: 50%;
-}
-
-@keyframes speak {
-    0% {
-        width: 20px;
-        height: 10px;
-    }
-    100% {
-        width: 25px;
-        height: 15px;
-    }
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(0.9);
-        opacity: 1;
-    }
-    70% {
-        transform: scale(1.1);
-        opacity: 0.5;
-    }
-    100% {
-        transform: scale(0.9);
-        opacity: 1;
-    }
-}
 
 .status-text {
     font-size: 1.2rem;
@@ -704,6 +726,111 @@ body {
 
 
 
+/* AIモード設定セクション */
+.mode-settings-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 24px;
+}
+
+.mode-settings-content {
+    padding: 24px;
+}
+
+/* LLMモデル設定セクション */
+.llm-settings-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 24px;
+}
+
+/* ボイス設定セクション */
+.voice-settings-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 24px;
+}
+
+.voice-settings-content {
+    padding: 24px;
+}
+
+.settings-section-header {
+    padding: 24px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.settings-section-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+}
+
+.llm-settings-content {
+    padding: 24px;
+}
+
+.setting-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.modern-select {
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    color: #111827;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+}
+
+.modern-select:hover {
+    border-color: #d1d5db;
+}
+
+.modern-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.current-model-info {
+    margin-top: 20px;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-label {
+    font-size: 14px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.info-value {
+    font-size: 14px;
+    color: #111827;
+    font-weight: 600;
+}
+
 /* 性格タイプセクション */
 .personality-section {
     background: white;
@@ -875,6 +1002,96 @@ body {
     transform: translateY(-1px);
 }
 
+/* ツールセクション */
+.tools-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 24px;
+}
+
+.tools-header {
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.tools-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+}
+
+.tools-list {
+    padding: 16px;
+}
+
+.tool-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #f9fafb;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.tool-item:hover {
+    background: #f3f4f6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tool-info {
+    flex: 1;
+}
+
+.tool-name {
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.tool-description {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.tool-status {
+    padding: 6px 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.tool-status.connected {
+    background: #d1fae5;
+    color: #10b981;
+}
+
+.tool-status.not-connected {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.tools-loading,
+.tools-empty,
+.tools-error {
+    text-align: center;
+    padding: 32px;
+    color: #6b7280;
+}
+
+.tools-error {
+    color: #ef4444;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 480px) {
     .input-row {
@@ -901,4 +1118,468 @@ body {
     .personality-type {
         font-size: 20px;
     }
+
+    .tool-item {
+        gap: 12px;
+    }
+
+    .tool-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+    }
+}
+
+/* アラームダイアログ */
+.alarm-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease;
+}
+
+.alarm-dialog-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    animation: slideUp 0.3s ease;
+}
+
+.alarm-dialog-header {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.alarm-dialog-header h3 {
+    margin: 0;
+    font-size: 20px;
+    color: #1f2937;
+}
+
+.close-dialog-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.close-dialog-btn:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.alarm-dialog-body {
+    padding: 20px;
+}
+
+.alarm-input-group {
+    margin-bottom: 16px;
+}
+
+.alarm-input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #374151;
+    font-size: 14px;
+}
+
+.alarm-input,
+.alarm-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.alarm-input:focus,
+.alarm-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.alarm-textarea {
+    resize: vertical;
+}
+
+.alarm-dialog-footer {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.alarm-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.alarm-btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.alarm-btn-primary:hover {
+    background: #2563eb;
+}
+
+.alarm-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.alarm-btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+.alarm-list-section {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.alarm-list-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #1f2937;
+}
+
+.alarm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alarm-item {
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.alarm-item-info {
+    flex: 1;
+}
+
+.alarm-item-time {
+    font-weight: 600;
+    font-size: 16px;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.alarm-item-message {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.alarm-item-delete {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.alarm-item-delete:hover {
+    background: #fecaca;
+}
+
+.alarm-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    padding: 20px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* テーブルセクション */
+.table-section {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.table-header {
+    background: #f3f4f6;
+    padding: 20px 24px;
+    text-align: center;
+    color: #374151;
+}
+
+.table-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.table-list {
+    padding: 0;
+}
+
+.table-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.2s ease;
+    cursor: pointer;
+}
+
+.table-item:last-child {
+    border-bottom: none;
+}
+
+.table-item:hover {
+    background: #f9fafb;
+}
+
+.table-info {
+    flex: 1;
+}
+
+.table-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.table-timestamp {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.table-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.table-status.processing {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.table-status.completed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.table-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    padding: 40px 20px;
+}
+
+/* 連絡先セクション */
+.contacts-section {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.contacts-header {
+    background: #f3f4f6;
+    padding: 20px 24px;
+    text-align: center;
+    color: #374151;
+}
+
+.contacts-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.contacts-list {
+    padding: 0;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.2s ease;
+}
+
+.contact-item:last-child {
+    border-bottom: none;
+}
+
+.contact-item:hover {
+    background: #f9fafb;
+}
+
+.contact-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #111827;
+}
+
+.contact-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.contact-btn {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.contact-btn:hover {
+    background: #f3f4f6;
+    transform: scale(1.05);
+}
+
+.phone-btn:hover {
+    background: #dcfce7;
+    border-color: #86efac;
+}
+
+.voice-btn:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+
+/* Gmail情報ダイアログスタイル */
+.gmail-info-section {
+    padding: 20px 0;
+}
+
+.gmail-status {
+    text-align: center;
+    padding: 20px;
+}
+
+.gmail-connected,
+.gmail-disconnected,
+.gmail-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.status-icon {
+    font-size: 48px;
+}
+
+.gmail-connected h4 {
+    color: #10b981;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.gmail-disconnected h4 {
+    color: #ef4444;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.gmail-error h4 {
+    color: #f59e0b;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.gmail-email {
+    background: #f3f4f6;
+    padding: 16px;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.gmail-email label {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.gmail-email p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #111827;
+    word-break: break-all;
+}
+
+.error-message {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin: 0;
 }

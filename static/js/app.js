@@ -932,7 +932,7 @@ class VoiceAgent {
 
     isToolConnected(toolName) {
         // 連携済みのツールを定義
-        const connectedTools = ['gmail', 'alarm'];
+        const connectedTools = ['gmail', 'alarm', 'vision'];
         return connectedTools.includes(toolName);
     }
 

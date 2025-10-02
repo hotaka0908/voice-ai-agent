@@ -686,6 +686,50 @@ async def get_gmail_info():
         return {"connected": False, "error": str(e)}
 
 
+@app.post("/api/vision/analyze")
+async def analyze_vision(request: Request):
+    """画像を分析"""
+    try:
+        data = await request.json()
+        image = data.get("image")
+        query = data.get("query", "この画像について詳しく教えてください")
+
+        if not image:
+            return {"success": False, "error": "画像データが必要です"}
+
+        # Visionツールを取得
+        vision_tool = app.state.voice_agent.tools.get_tool("vision")
+        if not vision_tool:
+            return {"success": False, "error": "Vision tool not available"}
+
+        # 画像分析を実行
+        result = await vision_tool.execute({
+            "image": image,
+            "query": query
+        })
+
+        # ToolResultの場合は結果を抽出
+        if isinstance(result, ToolResult):
+            analysis_text = result.result
+            success = result.success
+        else:
+            analysis_text = str(result)
+            success = True
+
+        # TTS音声合成
+        audio_url = await app.state.voice_agent.tts.synthesize(analysis_text)
+
+        return {
+            "success": success,
+            "result": analysis_text,
+            "audio_url": audio_url
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to analyze vision: {e}")
+        return {"success": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
 

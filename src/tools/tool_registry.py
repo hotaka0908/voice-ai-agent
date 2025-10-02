@@ -35,6 +35,7 @@ class ToolRegistry:
             "gmail": "src.tools.gmail_tool:GmailTool",
             "calendar": "src.tools.calendar_tool:CalendarTool",
             "alarm": "src.tools.alarm_tool:AlarmTool",
+            "vision": "src.tools.vision_tool:VisionTool",
             "aircon": "src.tools.dummy_tools:AirconTool",
             "light": "src.tools.dummy_tools:LightTool",
             "taxi": "src.tools.dummy_tools:TaxiTool",
@@ -100,6 +101,7 @@ class ToolRegistry:
         _try_import(lambda: __import__('src.tools.gmail_tool', fromlist=['GmailTool']).GmailTool, 'gmail')
         _try_import(lambda: __import__('src.tools.calendar_tool', fromlist=['CalendarTool']).CalendarTool, 'calendar')
         _try_import(lambda: __import__('src.tools.alarm_tool', fromlist=['AlarmTool']).AlarmTool, 'alarm')
+        _try_import(lambda: __import__('src.tools.vision_tool', fromlist=['VisionTool']).VisionTool, 'vision')
         _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['AirconTool']).AirconTool, 'aircon')
         _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['LightTool']).LightTool, 'light')
         _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['TaxiTool']).TaxiTool, 'taxi')

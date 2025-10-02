@@ -17,6 +17,10 @@
                     <div class="image-overlay" id="imageOverlay">
                         <span class="overlay-text" id="overlayText">タッチで話しかけて</span>
                     </div>
+                    <!-- カメラボタン -->
+                    <button id="cameraButton" class="camera-float-button" title="カメラで認識">
+                        カメラ
+                    </button>
                 </div>
             </div>
         </header>
@@ -315,6 +319,28 @@
         </div>
     </div>
 
+    <!-- カメラダイアログ -->
+    <div id="cameraDialog" class="alarm-dialog" style="display: none;">
+        <div class="camera-dialog-content">
+            <div class="alarm-dialog-header">
+                <h3>📷 カメラで認識</h3>
+                <button id="closeCameraDialog" class="close-dialog-btn">&times;</button>
+            </div>
+            <div class="camera-dialog-body">
+                <div class="camera-preview">
+                    <video id="cameraVideo" autoplay playsinline></video>
+                    <canvas id="cameraCanvas" style="display: none;"></canvas>
+                </div>
+                <div class="camera-controls">
+                    <button id="startCameraBtn" class="camera-btn camera-btn-primary">🎥 カメラ起動</button>
+                    <button id="captureBtn" class="camera-btn camera-btn-primary" style="display: none;">📸 撮影して分析</button>
+                    <button id="stopCameraBtn" class="camera-btn camera-btn-secondary" style="display: none;">停止</button>
+                </div>
+                <div id="visionResult" class="vision-result"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- 音声プレーヤー -->
     <audio id="audioPlayer" preload="auto"></audio>
 
@@ -323,5 +349,6 @@
     <script src="/static/js/websocket.js"></script>
     <script src="/static/js/ui.js"></script>
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/camera.js"></script>
 </body>
 </html>

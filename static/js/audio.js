@@ -461,7 +461,10 @@ class AudioManager {
         if (!this.eventListeners[event]) {
             this.eventListeners[event] = [];
         }
-        this.eventListeners[event].push(callback);
+        // 重複登録を防ぐ
+        if (!this.eventListeners[event].includes(callback)) {
+            this.eventListeners[event].push(callback);
+        }
     }
 
     off(event, callback) {

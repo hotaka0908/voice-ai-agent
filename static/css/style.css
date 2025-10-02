@@ -1699,13 +1699,13 @@ body {
     width: 80px;
     height: 60px;
     border-radius: 30px;
-    background: #9ca3af;
+    background: #f09f00;
     color: white;
     border: none;
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(156, 163, 175, 0.4);
+    box-shadow: 0 4px 12px rgba(240, 159, 0, 0.4);
     transition: all 0.3s;
     z-index: 999;
     display: flex;
@@ -1715,5 +1715,5 @@ body {
 
 .camera-float-button:hover {
     transform: scale(1.1);
-    box-shadow: 0 8px 20px rgba(156, 163, 175, 0.6);
+    box-shadow: 0 8px 20px rgba(240, 159, 0, 0.6);
 }

@@ -71,11 +71,26 @@ class VoiceAgent {
         // 設定ボタン
         document.getElementById('settingsButton').addEventListener('click', () => {
             this.uiManager.toggleSettings();
+
+            // 設定が開かれたときに各種情報をロード
+            if (this.uiManager.isSettingsOpen) {
+                setTimeout(() => {
+                    this.loadPersonalityType();
+                    this.loadCurrentMode();
+                    this.loadCurrentLLMConfig();
+                    this.loadCurrentVoice();
+                    this.loadAvailableTools();
+                    this.loadTableTasks();
+                }, 300);
+            }
         });
 
 
         // 各種設定の変更
         this.setupSettingsListeners();
+
+        // AudioManagerのイベントリスナーを一度だけ登録
+        this.setupAudioListeners();
 
         // 連絡先ボタンのイベントリスナー
         this.setupContactListeners();
@@ -120,6 +135,28 @@ class VoiceAgent {
         this.setupGmailListeners();
     }
 
+    setupAudioListeners() {
+        // AudioManagerのイベントリスナーを1回だけ登録
+        this.audioManager.on('audioData', (audioData) => {
+            this.uiManager.setProcessingState(true);
+            this.websocketManager.sendAudioData(audioData);
+        });
+
+        this.audioManager.on('recordingStart', () => {
+            this.isRecording = true;
+            this.uiManager.setRecordingState(true);
+        });
+
+        this.audioManager.on('recordingStop', () => {
+            this.isRecording = false;
+            this.uiManager.setRecordingState(false);
+            // 連続リスニングが有効なら自動再開
+            if (this.micActive) {
+                this.startRecording();
+            }
+        });
+    }
+
     setupSettingsListeners() {
         // 個人情報保存ボタン
         document.getElementById('savePersonalInfo').addEventListener('click', () => {
@@ -134,21 +171,6 @@ class VoiceAgent {
         // 性格タイプ更新ボタン
         document.getElementById('refreshPersonality').addEventListener('click', () => {
             this.loadPersonalityType();
-        });
-
-        // 設定パネルが開かれたときに性格タイプを自動ロード
-        document.getElementById('settingsButton').addEventListener('click', () => {
-            if (this.uiManager.isSettingsOpen) {
-                // 設定を開いた後にロード
-                setTimeout(() => {
-                    this.loadPersonalityType();
-                    this.loadCurrentMode();
-                    this.loadCurrentLLMConfig();
-                    this.loadCurrentVoice();
-                    this.loadAvailableTools();
-                    this.loadTableTasks();
-                }, 300); // アニメーション後にロード
-            }
         });
 
         // モード設定適用ボタン
@@ -193,27 +215,6 @@ class VoiceAgent {
             this.uiManager.setStatus('recording', '聞いています...');
 
             await this.audioManager.startRecording();
-
-        // 音声データのストリーミング開始
-        this.audioManager.on('audioData', (audioData) => {
-            // 処理中状態に変更
-            this.uiManager.setProcessingState(true);
-            this.websocketManager.sendAudioData(audioData);
-        });
-
-        // 録音状態イベント
-        this.audioManager.on('recordingStart', () => {
-            this.isRecording = true;
-            this.uiManager.setRecordingState(true);
-        });
-        this.audioManager.on('recordingStop', () => {
-            this.isRecording = false;
-            this.uiManager.setRecordingState(false);
-            // 連続リスニングが有効なら自動再開
-            if (this.micActive) {
-                this.startRecording();
-            }
-        });
 
         } catch (error) {
             console.error('Failed to start recording:', error);
@@ -533,7 +534,7 @@ class VoiceAgent {
 
             // 現在のモード情報を表示
             const modeNames = {
-                'assist': 'アシストモード',
+                'assist': 'スタンダードモード',
                 'auto': '全自動モード'
             };
             const modeName = modeNames[data.mode] || data.mode;
@@ -573,7 +574,7 @@ class VoiceAgent {
             }
 
             const modeNames = {
-                'assist': 'アシストモード',
+                'assist': 'スタンダードモード',
                 'auto': '全自動モード'
             };
             const modeName = modeNames[mode];

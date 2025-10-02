@@ -51,34 +51,7 @@
             </div>
 
 
-            <!-- AIモード設定セクション -->
-            <div class="mode-settings-section">
-                <div class="settings-section-header">
-                    <h3>🎯 AIモード設定</h3>
-                </div>
-
-                <div class="mode-settings-content">
-                    <!-- モード選択 -->
-                    <div class="input-group">
-                        <label class="setting-label">動作モード</label>
-                        <select id="aiMode" class="modern-select">
-                            <option value="assist">アシストモード</option>
-                            <option value="auto">全自動モード</option>
-                        </select>
-                    </div>
-
-                    <button id="applyModeSettings" class="modern-save-btn">
-                        適用
-                    </button>
-
-                    <div class="current-model-info" id="currentModeInfo">
-                        <span class="info-label">現在:</span>
-                        <span class="info-value" id="currentModeValue">読み込み中...</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- LLMモデル設定セクション -->
+            <!-- AIモデル設定セクション -->
             <div class="llm-settings-section">
                 <div class="settings-section-header">
                     <h3>🤖 AIモデル設定</h3>
@@ -130,6 +103,33 @@
                     <div class="current-model-info" id="currentVoiceInfo">
                         <span class="info-label">現在:</span>
                         <span class="info-value" id="currentVoiceValue">読み込み中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AIモード設定セクション -->
+            <div class="mode-settings-section">
+                <div class="settings-section-header">
+                    <h3>🎯 AIモード設定</h3>
+                </div>
+
+                <div class="mode-settings-content">
+                    <!-- モード選択 -->
+                    <div class="input-group">
+                        <label class="setting-label">動作モード</label>
+                        <select id="aiMode" class="modern-select">
+                            <option value="assist">スタンダードモード</option>
+                            <option value="auto">全自動モード</option>
+                        </select>
+                    </div>
+
+                    <button id="applyModeSettings" class="modern-save-btn">
+                        適用
+                    </button>
+
+                    <div class="current-model-info" id="currentModeInfo">
+                        <span class="info-label">現在:</span>
+                        <span class="info-value" id="currentModeValue">読み込み中...</span>
                     </div>
                 </div>
             </div>

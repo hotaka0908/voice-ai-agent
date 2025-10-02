@@ -342,10 +342,12 @@ class TextToSpeech:
 
             # OpenAI TTS API呼び出し
             voice = self.config.get("voice", "alloy")
+            speed = self.config.get("speed", 1.2)  # デフォルト1.2倍速
             response = self.openai_client.audio.speech.create(
                 model="tts-1",  # tts-1 または tts-1-hd
                 voice=voice,  # alloy, echo, fable, onyx, nova, shimmer
                 input=text,
+                speed=speed,  # 0.25 ~ 4.0 (デフォルト1.0)
                 response_format="mp3"
             )
 

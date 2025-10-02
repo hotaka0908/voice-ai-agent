@@ -429,6 +429,21 @@ class VoiceAgent {
     displayToolResults(toolResults) {
         for (const tool of toolResults) {
             this.uiManager.addToolResult(tool.name, tool.result);
+
+            // アラームツールの場合、フロントエンドのスケジューラーに登録
+            if (tool.name === 'alarm' && tool.result && tool.result.alarm) {
+                const alarm = tool.result.alarm;
+                console.log('🔔 Scheduling alarm from AI tool result:', alarm);
+
+                // アラーム配列に追加
+                this.alarms.push(alarm);
+
+                // スケジュールに登録
+                this.scheduleAlarm(alarm);
+
+                // アラーム一覧を更新
+                this.loadAlarmList();
+            }
         }
     }
 

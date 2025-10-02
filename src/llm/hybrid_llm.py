@@ -668,7 +668,11 @@ class HybridLLM:
                     prompt_parts.append("  - ユーザーが具体的なメッセージを指定した場合はそれを使用:")
                     prompt_parts.append("    例: 「7時に薬を飲むとリマインドして」→ message=\"薬を飲む時間です\"")
                     prompt_parts.append("  - 時刻は必ずHH:MM形式（24時間制）で指定してください")
-                    prompt_parts.append("  ⚠️ 重要: アラーム設定後は「〇時にアラームを設定しました」と確認メッセージを返してください")
+                    prompt_parts.append("  ")
+                    prompt_parts.append("  ⚠️ 最重要指示:")
+                    prompt_parts.append("  1. まずTOOL_CALL形式でアラームツールを実行してください")
+                    prompt_parts.append("  2. ツール実行が完了したら「〇時にセットしました」と簡潔に返してください")
+                    prompt_parts.append("  3. ツールを実行せずに応答だけ返すことは絶対にしないでください")
 
             prompt_parts.append(
                 "\n重要: ツールを使用する場合は、必ず正確な形式で指示してください。"

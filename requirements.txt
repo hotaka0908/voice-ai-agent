@@ -45,6 +45,7 @@ python-multipart==0.0.6
 aiofiles==23.2.1
 loguru==0.7.2
 PyYAML==6.0.1
+jinja2==3.1.2
 
 # Development (本番環境では不要)
 # pytest==7.4.3

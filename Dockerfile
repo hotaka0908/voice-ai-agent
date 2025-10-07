@@ -24,4 +24,4 @@ RUN mkdir -p data/audio data/memory
 EXPOSE 8000
 
 # アプリケーション起動
-CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

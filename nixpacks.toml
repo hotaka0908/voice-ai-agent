@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python310", "ffmpeg"]
+nixPkgs = ["python310", "pip", "ffmpeg"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = ["python3.10 -m pip install --upgrade pip", "python3.10 -m pip install -r requirements.txt"]
 
 [start]
-cmd = "uvicorn src.main:app --host 0.0.0.0 --port $PORT"
+cmd = "python3.10 -m uvicorn src.main:app --host 0.0.0.0 --port $PORT"

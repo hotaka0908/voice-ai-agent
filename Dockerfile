@@ -20,8 +20,11 @@ COPY . .
 # データディレクトリを作成
 RUN mkdir -p data/audio data/memory
 
+# 起動スクリプトに実行権限を付与
+RUN chmod +x start.sh
+
 # ポートを公開
 EXPOSE 8000
 
 # アプリケーション起動
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["./start.sh"]

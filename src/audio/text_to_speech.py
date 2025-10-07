@@ -11,20 +11,9 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from loguru import logger
 
-try:
-    from elevenlabs import Voice, VoiceSettings, generate, save
-    from elevenlabs.client import ElevenLabs
-    ELEVENLABS_AVAILABLE = True
-except ImportError:
-    ELEVENLABS_AVAILABLE = False
-    logger.warning("ElevenLabs not available, using fallback TTS")
-
-try:
-    from gtts import gTTS
-    GTTS_AVAILABLE = True
-except ImportError:
-    GTTS_AVAILABLE = False
-    logger.warning("gTTS not available")
+# ElevenLabs and gTTS are not used in this system
+ELEVENLABS_AVAILABLE = False
+GTTS_AVAILABLE = False
 
 try:
     import openai

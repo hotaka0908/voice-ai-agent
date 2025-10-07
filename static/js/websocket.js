@@ -75,6 +75,9 @@ class WebSocketManager {
                     if (data.type === 'user_message' || data.type === 'assistant_message') {
                         console.log('🎤 Emitting voiceMessage event:', data);
                         this.emit('voiceMessage', data);
+                    } else if (data.type === 'status') {
+                        console.log('📊 Processing status:', data.message);
+                        this.emit('status', data);
                     } else {
                         console.log('🎤 Emitting regular message event:', data);
                         this.emit('message', data);

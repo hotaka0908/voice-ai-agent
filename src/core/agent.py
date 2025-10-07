@@ -5,7 +5,7 @@ Voice Agent - メインエージェントクラス
 """
 
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from datetime import datetime
 from loguru import logger
 
@@ -34,6 +34,7 @@ class VoiceAgent:
         self.context: Optional[ContextManager] = None
         self.rule_processor: Optional[RuleProcessor] = None
         self.is_initialized = False
+        self.status_callback: Optional[Callable] = None
 
     async def initialize(self):
         """エージェントの初期化"""
@@ -82,6 +83,9 @@ class VoiceAgent:
 
         try:
             # 1. 音声をテキストに変換
+            if self.status_callback:
+                await self.status_callback("🎤 音声を認識中...")
+
             logger.debug("Converting speech to text...")
             text = await self.stt.transcribe(audio_data)
 
@@ -91,6 +95,9 @@ class VoiceAgent:
             logger.info(f"Recognized: {text}")
 
             # 2. テキストを処理
+            if self.status_callback:
+                await self.status_callback("🧠 内容を理解中...")
+
             text_response = await self.process_text(text)
 
             # 3. 認識されたテキストも含めて返す
@@ -212,10 +219,22 @@ class VoiceAgent:
             if llm_response.get("tool_calls"):
                 logger.info(f"Executing {len(llm_response['tool_calls'])} tools")
 
+                # ツール実行中のステータス通知
+                tool_names = [tc.get('name', '') for tc in llm_response['tool_calls']]
+                if self.status_callback:
+                    if 'gmail' in tool_names:
+                        await self.status_callback("📧 メールを確認中...")
+                    elif 'calendar' in tool_names:
+                        await self.status_callback("📅 予定を確認中...")
+                    elif 'alarm' in tool_names:
+                        await self.status_callback("⏰ アラームを設定中...")
+                    else:
+                        await self.status_callback("🔧 処理中...")
+
                 # 全自動モードの場合、テーブルタスクを作成
                 if ai_mode == "auto" and memory_tool:
                     task_title = f"自動実行: {text[:30]}..."
-                    task_content = f"ユーザー入力: {text}\nツール: {', '.join([tc.get('name', '') for tc in llm_response['tool_calls']])}"
+                    task_content = f"ユーザー入力: {text}\nツール: {', '.join(tool_names)}"
                     table_task = await memory_tool.add_table_task(
                         title=task_title,
                         content=task_content,
@@ -233,6 +252,9 @@ class VoiceAgent:
                 await self._extract_and_store_email_ids(tool_results)
 
                 # ツール結果を含めて再度LLM処理
+                if self.status_callback:
+                    await self.status_callback("🗣️ 応答を生成中...")
+
                 final_response = await self.llm.generate_final_response(
                     original_request=text,
                     tool_results=tool_results,

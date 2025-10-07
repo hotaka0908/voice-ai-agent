@@ -23,6 +23,9 @@
                     </button>
                 </div>
             </div>
+
+            <!-- 処理状態表示 -->
+            <div id="processing-status" class="processing-indicator" style="display: none;"></div>
         </header>
 
         <main class="main">
@@ -270,16 +273,22 @@
             <div class="alarm-dialog-body">
                 <div class="alarm-input-group">
                     <label>時刻</label>
-                    <input type="time" id="alarmTime" class="alarm-input" required>
+                    <div class="time-picker-modern">
+                        <div class="time-input-group">
+                            <input type="number" id="alarmHour" class="time-input" min="0" max="23" value="12" placeholder="00">
+                            <span class="time-separator">:</span>
+                            <input type="number" id="alarmMinute" class="time-input" min="0" max="59" value="00" placeholder="00">
+                        </div>
+                    </div>
                 </div>
                 <div class="alarm-input-group">
                     <label>メッセージ</label>
                     <textarea id="alarmMessage" class="alarm-textarea" placeholder="読み上げるメッセージを入力してください" rows="3"></textarea>
                 </div>
                 <div class="alarm-input-group">
-                    <label>
+                    <label class="checkbox-modern">
                         <input type="checkbox" id="alarmRepeat">
-                        毎日繰り返す
+                        <span class="checkbox-label">毎日繰り返す</span>
                     </label>
                 </div>
             </div>
@@ -315,6 +324,27 @@
             </div>
             <div class="alarm-dialog-footer">
                 <button id="closeGmailInfoBtn" class="alarm-btn alarm-btn-primary">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- カレンダー連携情報ダイアログ -->
+    <div id="calendarDialog" class="alarm-dialog" style="display: none;">
+        <div class="alarm-dialog-content">
+            <div class="alarm-dialog-header">
+                <h3>📅 カレンダー連携情報</h3>
+                <button id="closeCalendarDialog" class="close-dialog-btn">&times;</button>
+            </div>
+            <div class="alarm-dialog-body">
+                <div class="calendar-info-section">
+                    <div class="calendar-status" id="calendarStatus">
+                        <div class="spinner"></div>
+                        <p>読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="alarm-dialog-footer">
+                <button id="closeCalendarInfoBtn" class="alarm-btn alarm-btn-primary">閉じる</button>
             </div>
         </div>
     </div>

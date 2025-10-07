@@ -7,9 +7,11 @@ Gmail Tool - Gmail API連携ツール
 import os
 import json
 import base64
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from loguru import logger
+from email.utils import parseaddr, parsedate_to_datetime
 
 from src.core.tool_base import Tool, ToolResult, ToolParameter, ToolSchema
 
@@ -264,38 +266,49 @@ class GmailTool(Tool):
                     result="該当するメールが見つかりませんでした。"
                 )
 
-            # 各メッセージの詳細を取得
+            # 各メッセージの詳細を取得（本文も含む）
             email_list = []
             for msg in messages[:max_results]:
                 msg_detail = self.service.users().messages().get(
                     userId='me',
                     id=msg['id'],
-                    format='metadata',
-                    metadataHeaders=['From', 'Subject', 'Date']
+                    format='full'  # 本文取得のためfullに変更
                 ).execute()
 
                 headers = {h['name']: h['value'] for h in msg_detail['payload']['headers']}
 
+                # 本文を抽出
+                body = self._extract_body(msg_detail['payload'])
+
+                # 音声向けデータを作成
+                from_header = headers.get('From', '不明')
+                date_header = headers.get('Date', '')
+                subject = headers.get('Subject', '件名なし')
+
                 email_info = {
                     'id': msg['id'],
-                    'from': headers.get('From', '不明'),
-                    'subject': headers.get('Subject', '件名なし'),
-                    'date': headers.get('Date', '日付不明')
+                    'from': from_header,
+                    'from_name': self._extract_sender_name(from_header),
+                    'subject': subject,
+                    'date': date_header,
+                    'when': self._parse_date_for_voice(date_header),
+                    'body': body,
+                    'summary': self._summarize_body(body)
                 }
                 email_list.append(email_info)
 
-            # 結果をフォーマット
-            result_text = f"📧 メール一覧 ({len(email_list)}件)\n\n"
-            for i, email in enumerate(email_list, 1):
-                result_text += f"{i}. **{email['subject']}**\n"
-                result_text += f"   差出人: {email['from']}\n"
-                result_text += f"   日時: {email['date']}\n"
-                result_text += f"   ID: {email['id']}\n\n"
+            # 音声向けフォーマット
+            voice_text = self._format_for_voice(email_list)
+
+            # 詳細情報はログに出力（デバッグ用）
+            logger.info(f"Gmail list result: {len(email_list)} emails")
+            for email in email_list[:3]:  # 最初の3件のみログ
+                logger.debug(f"  - {email['from_name']}: {email['subject']}")
 
             # メタデータにメールIDを含める（ID抽出用）
             metadata = {"latest_email_id": email_list[0]['id'] if email_list else None}
 
-            return ToolResult(success=True, result=result_text, metadata=metadata)
+            return ToolResult(success=True, result=voice_text, metadata=metadata)
 
         except Exception as e:
             return ToolResult(
@@ -348,13 +361,16 @@ class GmailTool(Tool):
             # 本文を取得
             body = self._extract_body(message['payload'])
 
-            # 結果をフォーマット
-            result_text = f"📧 **メール詳細**\n\n"
-            result_text += f"**件名**: {headers.get('Subject', '件名なし')}\n"
-            result_text += f"**差出人**: {headers.get('From', '不明')}\n"
-            result_text += f"**宛先**: {headers.get('To', '不明')}\n"
-            result_text += f"**日時**: {headers.get('Date', '日付不明')}\n\n"
-            result_text += f"**本文**:\n{body}\n"
+            # 音声向けにフォーマット
+            from_header = headers.get('From', '不明')
+            date_header = headers.get('Date', '')
+            subject = headers.get('Subject', '件名なし')
+
+            sender_name = self._extract_sender_name(from_header)
+            when = self._parse_date_for_voice(date_header)
+            summary = self._summarize_body(body)
+
+            result_text = f"{sender_name}さんから、{when}に、{subject}というメールが届いています。{summary}"
 
             return ToolResult(success=True, result=result_text)
 
@@ -486,7 +502,6 @@ class GmailTool(Tool):
                     data = part['body']['data']
                     html_body = base64.urlsafe_b64decode(data).decode('utf-8')
                     # 簡単なHTML除去（本格的にはBeautifulSoupを使用）
-                    import re
                     body = re.sub(r'<[^>]+>', '', html_body)
         else:
             if payload['body'].get('data'):
@@ -494,6 +509,93 @@ class GmailTool(Tool):
                 body = base64.urlsafe_b64decode(data).decode('utf-8')
 
         return body or "本文を取得できませんでした"
+
+    def _extract_sender_name(self, from_header: str) -> str:
+        """送信者名を抽出 (例: "John Doe <john@example.com>" -> "John Doe")"""
+        name, email = parseaddr(from_header)
+        if name:
+            return name
+        # 名前がない場合はメールアドレスの@より前を使用
+        return email.split('@')[0] if email else "不明な送信者"
+
+    def _parse_date_for_voice(self, date_str: str) -> str:
+        """日時を音声向けに変換"""
+        try:
+            # メール日時を取得（タイムゾーン付き）
+            email_date = parsedate_to_datetime(date_str)
+
+            # ローカル時間に変換
+            from datetime import timezone
+            local_email_date = email_date.astimezone()
+            now = datetime.now().astimezone()
+
+            # 日付の差分を計算
+            email_date_only = local_email_date.date()
+            today = now.date()
+            diff_days = (today - email_date_only).days
+
+            # 今日
+            if diff_days == 0:
+                hour = local_email_date.hour
+                minute = local_email_date.minute
+                period = "午前" if hour < 12 else "午後"
+                hour_12 = hour if hour <= 12 else hour - 12
+                if hour_12 == 0:
+                    hour_12 = 12
+
+                if minute == 0:
+                    return f"今日の{period}{hour_12}時"
+                else:
+                    return f"今日の{period}{hour_12}時{minute}分"
+            # 昨日
+            elif diff_days == 1:
+                return "昨日"
+            # 一週間以内
+            elif diff_days < 7:
+                return f"{diff_days}日前"
+            # それ以上
+            else:
+                return local_email_date.strftime("%m月%d日")
+        except Exception as e:
+            logger.warning(f"Failed to parse date '{date_str}': {e}")
+            return "最近"
+
+    def _summarize_body(self, body: str, max_length: int = 50) -> str:
+        """本文を音声向けに要約"""
+        if not body or body == "本文を取得できませんでした":
+            return "本文なし"
+
+        # 改行・空白を正規化
+        body = re.sub(r'\s+', ' ', body).strip()
+
+        # HTMLエンティティのデコード（簡易版）
+        body = body.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>')
+
+        # 最初の文を抽出（。！？で区切る）
+        sentences = re.split(r'[。！？]', body)
+        first_sentence = sentences[0].strip() if sentences else body
+
+        # 長すぎる場合は切り詰める
+        if len(first_sentence) > max_length:
+            return first_sentence[:max_length] + "など"
+
+        return first_sentence if first_sentence else "内容を確認できませんでした"
+
+    def _format_for_voice(self, email_list: List[dict]) -> str:
+        """メール一覧を音声向けにフォーマット"""
+        if len(email_list) == 0:
+            return "メールはありませんよ"
+        elif len(email_list) == 1:
+            e = email_list[0]
+            return f"{e['from_name']}さんから、{e['when']}に、{e['subject']}というメールが届いています。{e['summary']}"
+        elif len(email_list) <= 3:
+            summaries = []
+            for e in email_list:
+                summaries.append(f"{e['from_name']}さんから{e['subject']}")
+            return f"{len(email_list)}件のメールがありますよ。" + "、".join(summaries) + "ですね"
+        else:
+            latest = email_list[0]
+            return f"{len(email_list)}件のメールがあります。最新は{latest['from_name']}さんからの{latest['subject']}ですよ"
 
     async def _reply_email(self, parameters: Dict[str, Any]) -> ToolResult:
         """メール返信"""

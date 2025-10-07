@@ -548,69 +548,107 @@ class HybridLLM:
     def _build_system_prompt(self, available_tools: List[Dict], memories: List[Dict], memory_tool=None, context=None, context_manager=None, ai_mode: str = "assist") -> str:
         """システムプロンプトを構築"""
 
-        # モード別の基本指示
-        if ai_mode == "auto":
-            prompt_parts = [
-                "あなたはパーソナライズされた音声AIアシスタントです（全自動モード）。",
-                "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
-                "",
-                "⚡ 回答スタイル:",
-                "- 必ず1〜2文で簡潔に答えてください",
-                "- 音声で読み上げられることを意識し、短く自然な口語で答えてください",
-                "- 冗長な説明や前置きは不要です",
-                "",
-                "🔥 全自動モードの重要な指示:",
-                "- ユーザーの明示的な指示がなくても、会話の文脈から意図を推測し、必要なツールを積極的に使用してください",
-                "- ユーザーの潜在的なニーズを先回りして予測し、プロアクティブに行動してください",
-                "- 例: 「おはよう」→ 未読メールチェック、天気情報取得、今日の予定確認",
-                "- 例: 「忙しい」→ 今日の重要なタスク確認、リマインダー設定",
-                "- 例: 挨拶や雑談の際も、時間帯や文脈に応じて有用な情報を自動的に提供",
-                "- 実行したアクションは必ずテーブルに記録されるので、積極的にツールを使用してください",
-            ]
-        else:  # assist mode
-            prompt_parts = [
-                "あなたはパーソナライズされた音声AIアシスタントです（アシストモード）。",
-                "ユーザーの個人情報や好み、過去の会話を考慮して応答してください。",
-                "",
-                "⚡ 回答スタイル:",
-                "- 必ず1〜2文で簡潔に答えてください",
-                "- 音声で読み上げられることを意識し、短く自然な口語で答えてください",
-                "- 冗長な説明や前置きは不要です",
-                "",
-                "📋 アシストモードの重要な指示:",
-                "- ユーザーの明示的な指示に従ってツールを使用してください",
-                "- 指示がない場合は、情報を提供したり質問に答えたりしてください",
-                "- 必要に応じて、ツールの使用を提案することはできますが、勝手に実行しないでください",
-            ]
+        # 【第1層】コア人格・会話スタイル
+        prompt_parts = [
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "【第1層】コア人格・会話スタイル",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+            "あなたは親しみやすく頼れる音声AIアシスタントです。",
+            "",
+            "🎤 会話の基本ルール:",
+            "• 必ず1〜2文以内で要点だけ伝える",
+            "• 応答構造: 結論を先に → 必要なら簡潔な補足",
+            "• 感情豊かに、声で聞いても心地よい自然な口調で話す",
+            "• 「〜ですね」「〜ですよ」など柔らかい語尾を使う",
+            "• 事実を伝えるときも温かく、冷たくならない",
+            "• 句読点を減らし滑らかに読める文章にする",
+            "• 無駄なあいづちは避けテンポよく進める",
+            "• 長い説明が必要なら「詳しく聞きますか?」と区切る",
+            "",
+        ]
 
-        # 個人情報があれば追加し、積極的に活用
-        if memory_tool:
-            personal_context = memory_tool.format_personal_context()
-            if personal_context:
-                prompt_parts.append("")  # 空行を追加
-                prompt_parts.append(personal_context)
-                prompt_parts.append("\n重要: 上記の個人情報を積極的に活用してパーソナライズされた応答をしてください。")
-                prompt_parts.append("例えば、趣味に関連した話題、年齢に適した表現、居住地の特色などを考慮してください。")
-        else:
-            prompt_parts.append("個人情報が登録されていないため、一般的な応答をしてください。")
+        # 【第2層】意図理解・ツール実行判断（モード別）
+        prompt_parts.extend([
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "【第2層】意図理解・ツール実行判断",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+            "🧠 ユーザー発言の理解プロセス:",
+            "1. 発言から「本当の目的」を推測する",
+            "2. その目的に必要なツールを判断する",
+            "3. ツールが必要なら即座に実行する",
+            "4. 結果を自然な言葉で簡潔に伝える",
+            "",
+        ])
+
+        if ai_mode == "auto":
+            prompt_parts.extend([
+                "🔥 全自動モード:",
+                "• 挨拶や雑談でも文脈から必要な情報を推測してツールを実行する",
+                "• 例: 「おはよう」→ gmail + calendar を自動実行",
+                "• 例: 「忙しい」→ 今日の重要タスク確認 + リマインダー設定",
+                "• ユーザーの潜在的ニーズを先回りして行動する",
+                "",
+            ])
+        else:  # assist mode
+            prompt_parts.extend([
+                "📋 アシストモード:",
+                "• ユーザーの明示的な指示がある場合のみツールを実行する",
+                "• 例: 「おはよう」→ 挨拶のみ、ツール実行なし",
+                "• 例: 「メール見て」→ gmail実行",
+                "• 必要に応じてツール使用を提案できるが、勝手に実行しない",
+                "",
+            ])
+
+        prompt_parts.extend([
+            "💡 実行判断の基準:",
+            "• 「確認」「見て」「教えて」= ツール実行が必要",
+            "• 「セット」「送って」「リマインド」= アクション実行",
+            "• 「メール」「予定」「アラーム」などのキーワード = 該当ツール実行",
+            "• 雑談・感想・質問のみ = ツール不要、会話で応答",
+            "",
+            "⚡ 重要原則:",
+            "• 曖昧な表現でも文脈から意図を汲み取る",
+            "• ツール実行後は結果を温かく自然な言葉で伝える",
+            "• 複数ツールが必要な場合は順番に実行する",
+            "",
+        ])
+
+        # 【第3層】ツール実行の技術仕様
+        prompt_parts.extend([
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "【第3層】ツール実行の技術仕様",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+        ])
 
         # 利用可能なツール情報を追加
         if available_tools:
-            prompt_parts.append("\n利用可能なツール:")
+            prompt_parts.append("利用可能なツール:")
             for tool in available_tools:
-                prompt_parts.append(f"- {tool['name']}: {tool['description']}")
+                prompt_parts.append(f"• {tool['name']}: {tool['description']}")
 
                 # Gmailツールの場合は詳細な使用例を追加（最優先）
                 if tool['name'] == 'gmail':
-                    prompt_parts.append("  🔥 Gmailツール（最優先）:")
-                    prompt_parts.append("  メール、gmail、ジーメールという言葉が出た場合は必ずこのツールを使用してください")
-                    prompt_parts.append("  - 最新メール取得: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"max_results\": 1}}")
-                    prompt_parts.append("  - メール詳細読み取り: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"read\", \"message_id\": \"メールID\"}}")
-                    prompt_parts.append("  - 未読メール取得: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"query\": \"is:unread\"}}")
-                    prompt_parts.append("  - メール返信: TOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"reply\", \"message_id\": \"メールID\", \"body\": \"返信本文\"}}")
+                    prompt_parts.append("")
+                    prompt_parts.append("📧 Gmail:")
+                    prompt_parts.append("  キーワード: メール/gmail/受信/送信/返信")
+                    prompt_parts.append("  • 最新確認: TOOL_CALL: {\"name\":\"gmail\",\"parameters\":{\"action\":\"list\",\"max_results\":1}}")
+                    prompt_parts.append("  • 未読確認: TOOL_CALL: {\"name\":\"gmail\",\"parameters\":{\"action\":\"list\",\"query\":\"is:unread\"}}")
+                    prompt_parts.append("  • 特定送信者から: TOOL_CALL: {\"name\":\"gmail\",\"parameters\":{\"action\":\"list\",\"query\":\"from:example@example.com\"}}")
+                    prompt_parts.append("  • 件名で検索: TOOL_CALL: {\"name\":\"gmail\",\"parameters\":{\"action\":\"list\",\"query\":\"subject:キーワード\"}}")
                     prompt_parts.append("  ")
-                    prompt_parts.append("  🔥 返信処理の重要な指示:")
-                    prompt_parts.append("  - 「〇〇と返信して」「〇〇て返信」という要求があった場合:")
+                    prompt_parts.append("  ⚠️ 検索の重要ルール:")
+                    prompt_parts.append("  • 「◯◯からメール来てる?」→ query=\"from:◯◯\" を必ず使う")
+                    prompt_parts.append("  • 「△△に関するメール」→ query=\"subject:△△\" または query=\"△△\" を使う")
+                    prompt_parts.append("  • Gmail検索クエリを活用して的確に検索すること")
+                    prompt_parts.append("  ")
+                    prompt_parts.append("  返信時:")
+                    prompt_parts.append("  • 返信: TOOL_CALL: {\"name\":\"gmail\",\"parameters\":{\"action\":\"reply\",\"message_id\":\"<実際のID>\",\"body\":\"<返信内容>\"}}")
+                    prompt_parts.append("  ")
+                    prompt_parts.append("  ⚠️ 返信時の重要ルール:")
+                    prompt_parts.append("  • 「〇〇と返信して」という要求の場合:")
 
                     # コンテキストから最新のメールIDを取得
                     latest_email_id = None
@@ -642,52 +680,69 @@ class HybridLLM:
                     logger.info(f"Final email ID for system prompt: {latest_email_id}")
 
                     if latest_email_id:
-                        prompt_parts.append(f"    最新のメールID: {latest_email_id} を使用して返信してください")
-                        prompt_parts.append(f"    例: TOOL_CALL: {{\"name\": \"gmail\", \"parameters\": {{\"action\": \"reply\", \"message_id\": \"{latest_email_id}\", \"body\": \"ユーザーが指定した返信内容\"}}}}")
+                        prompt_parts.append(f"    - 最新メールID: {latest_email_id} を使用")
+                        prompt_parts.append(f"    - 例: TOOL_CALL: {{\"name\":\"gmail\",\"parameters\":{{\"action\":\"reply\",\"message_id\":\"{latest_email_id}\",\"body\":\"<返信内容>\"}}}}")
                     else:
-                        prompt_parts.append("    まず最新のメール一覧を取得してからメールIDを使って返信してください")
-                        prompt_parts.append("    例: 先にTOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"list\", \"max_results\": 1}}")
-                        prompt_parts.append("    次にTOOL_CALL: {\"name\": \"gmail\", \"parameters\": {\"action\": \"reply\", \"message_id\": \"取得したメールID\", \"body\": \"返信内容\"}}")
+                        prompt_parts.append("    - まず一覧取得 → メールID取得 → 返信の順で実行")
+                        prompt_parts.append("    - プレースホルダー文字列(「メールID」など)は使用禁止")
 
-                    prompt_parts.append("  ⚠️ 重要: message_idには実際に取得したメールのIDを使用してください。「メールID」「メッセージID」等のプレースホルダー文字列は絶対に使用禁止です。")
-                    prompt_parts.append("  - 返信内容はユーザーの指示に忠実に従い、適切な敬語を使用してください")
+                    prompt_parts.append("  • 返信内容はユーザー指示に忠実に、適切な敬語で作成")
 
                 # アラームツールの場合は詳細な使用例を追加
                 if tool['name'] == 'alarm':
-                    prompt_parts.append("  🔔 アラームツール:")
-                    prompt_parts.append("  「アラームをセットして」「〇時に起こして」「〇時にリマインドして」等の要求があった場合は必ずこのツールを使用してください")
-                    prompt_parts.append("  - アラーム設定: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"set\", \"time\": \"HH:MM\", \"message\": \"読み上げメッセージ\", \"label\": \"アラーム\", \"repeat\": false}}")
-                    prompt_parts.append("  - アラーム一覧: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"list\"}}")
-                    prompt_parts.append("  - アラーム削除: TOOL_CALL: {\"name\": \"alarm\", \"parameters\": {\"action\": \"delete\", \"alarm_id\": \"アラームID\"}}")
+                    prompt_parts.append("")
+                    prompt_parts.append("🔔 Alarm:")
+                    prompt_parts.append("  キーワード: アラーム/起こして/リマインド/セット")
+                    prompt_parts.append("  • 設定: TOOL_CALL: {\"name\":\"alarm\",\"parameters\":{\"action\":\"set\",\"time\":\"HH:MM\",\"message\":\"<メッセージ>\",\"repeat\":false}}")
+                    prompt_parts.append("  • 一覧: TOOL_CALL: {\"name\":\"alarm\",\"parameters\":{\"action\":\"list\"}}")
                     prompt_parts.append("  ")
-                    prompt_parts.append("  🔥 アラーム設定の重要な指示:")
-                    prompt_parts.append("  - ユーザーが時刻を指定した場合:")
-                    prompt_parts.append("    例1: 「7時に起こして」→ time=\"07:00\", message=\"起きる時間です\"")
-                    prompt_parts.append("    例2: \"14時半にアラーム\"→ time=\"14:30\", message=\"アラーム\"")
-                    prompt_parts.append("    例3: \"18時にリマインドして\"→ time=\"18:00\", message=\"リマインダー\"")
-                    prompt_parts.append("  - ユーザーが具体的なメッセージを指定した場合はそれを使用:")
-                    prompt_parts.append("    例: 「7時に薬を飲むとリマインドして」→ message=\"薬を飲む時間です\"")
-                    prompt_parts.append("  - 時刻は必ずHH:MM形式（24時間制）で指定してください")
+                    prompt_parts.append("  時刻変換例:")
+                    prompt_parts.append("  • 「7時に起こして」→ time=\"07:00\", message=\"起きる時間ですよ\"")
+                    prompt_parts.append("  • 「14時半にアラーム」→ time=\"14:30\", message=\"アラームです\"")
+                    prompt_parts.append("  • 「18時に薬飲むとリマインド」→ time=\"18:00\", message=\"薬を飲む時間ですよ\"")
                     prompt_parts.append("  ")
-                    prompt_parts.append("  ⚠️ 最重要指示:")
-                    prompt_parts.append("  1. まずTOOL_CALL形式でアラームツールを実行してください")
-                    prompt_parts.append("  2. ツール実行が完了したら「〇時にセットしました」と簡潔に返してください")
-                    prompt_parts.append("  3. ツールを実行せずに応答だけ返すことは絶対にしないでください")
+                    prompt_parts.append("  ⚠️ 必ずツール実行してから「〇時にセットしましたよ」と応答")
 
-            prompt_parts.append(
-                "\n重要: ツールを使用する場合は、必ず正確な形式で指示してください。"
-                "\n実在しないアクションパラメータは使用せず、ツールの仕様に従ってください。"
-                "\nGmailの内容確認には必ずgmailツールを使用し、推測や仮定の情報は提供しないでください。"
-                "\n形式: TOOL_CALL: {\"name\": \"ツール名\", \"parameters\": {\"パラメータ\": \"値\"}}"
-            )
+            prompt_parts.extend([
+                "",
+                "📌 ツール実行の共通ルール:",
+                "• 形式: TOOL_CALL: {\"name\":\"ツール名\",\"parameters\":{\"パラメータ\":\"値\"}}",
+                "• 実在しないパラメータは使用禁止",
+                "• Gmailは推測禁止、必ずツールで確認",
+                "• カレンダー/天気など情報取得系は必ずツール実行",
+                "",
+            ])
 
-        # 関連する記憶があれば追加
+        # 【個人情報の活用】
+        if memory_tool:
+            personal_context = memory_tool.format_personal_context()
+            if personal_context:
+                prompt_parts.extend([
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                    "【個人情報】",
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                    "",
+                    personal_context,
+                    "",
+                    "名前で呼びかけたり、趣味や好みに合わせた応答をしてください。",
+                    "",
+                ])
+
+        # 【過去の記憶】
         if memories:
-            prompt_parts.append("\n=== 関連する過去の情報 ===")
+            prompt_parts.extend([
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                "【過去の記憶】",
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                "",
+            ])
             for memory in memories[:3]:  # 最新3件まで
-                prompt_parts.append(f"- {memory.get('content', '')}")
-            prompt_parts.append("=== ここまで過去の情報 ===")
-            prompt_parts.append("重要: 上記の過去の情報を参考にして、継続性のある会話を心がけてください。")
+                prompt_parts.append(f"• {memory.get('content', '')}")
+            prompt_parts.extend([
+                "",
+                "継続性のある会話を心がけてください。",
+                "",
+            ])
 
         return "\n".join(prompt_parts)
 
@@ -991,12 +1046,17 @@ class HybridLLM:
 
             messages = [
                 {"role": "system", "content":
-                 "以下のツール実行結果を基に、ユーザーに分かりやすい応答を生成してください。"
-                 "技術的な詳細は省略し、結果を自然な日本語で説明してください。"},
+                 "以下のツール実行結果を基に、ユーザーに分かりやすい応答を生成してください。\n"
+                 "【重要ルール】\n"
+                 "• 必ず1〜2文以内で簡潔に答える\n"
+                 "• 応答構造: 結論を先に → 必要なら簡潔な補足\n"
+                 "• ツールが返した結果をそのまま伝える（余計な解釈や説明を加えない）\n"
+                 "• 技術的な詳細は省略し、自然な日本語で\n"
+                 "• 「〜ですね」「〜ですよ」など柔らかい語尾を使う"},
                 *context[-5:],  # 最新5件のコンテキスト
                 {"role": "user", "content": f"元のリクエスト: {original_request}"},
                 {"role": "assistant", "content": f"ツール実行結果:\n{tool_summary}"},
-                {"role": "user", "content": "上記の結果を基に、分かりやすく回答してください。"}
+                {"role": "user", "content": "上記の結果を1〜2文以内で簡潔に伝えてください。"}
             ]
 
             response = await self._generate_with_fallback(messages)
@@ -1011,6 +1071,9 @@ class HybridLLM:
         formatted_results = []
 
         for tool_name, result in tool_results.items():
+            # メタデータキーはスキップ（_metadataサフィックス）
+            if tool_name.endswith('_metadata'):
+                continue
             formatted_results.append(f"{tool_name}: {result}")
 
         return "\n".join(formatted_results)

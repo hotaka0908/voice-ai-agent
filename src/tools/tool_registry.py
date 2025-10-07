@@ -34,6 +34,7 @@ class ToolRegistry:
             "mcp": "src.tools.mcp_tool:MCPTool",
             "gmail": "src.tools.gmail_tool:GmailTool",
             "calendar": "src.tools.calendar_tool:CalendarTool",
+            "calendar_mcp": "src.tools.calendar_mcp_tool:CalendarMCPTool",
             "alarm": "src.tools.alarm_tool:AlarmTool",
             "vision": "src.tools.vision_tool:VisionTool",
             "aircon": "src.tools.dummy_tools:AirconTool",
@@ -99,7 +100,8 @@ class ToolRegistry:
         _try_import(lambda: __import__('src.tools.mobile_bridge_tool', fromlist=['MobileBridgeTool']).MobileBridgeTool, 'mobile_bridge')
         _try_import(lambda: __import__('src.tools.mcp_tool', fromlist=['MCPTool']).MCPTool, 'mcp')
         _try_import(lambda: __import__('src.tools.gmail_tool', fromlist=['GmailTool']).GmailTool, 'gmail')
-        _try_import(lambda: __import__('src.tools.calendar_tool', fromlist=['CalendarTool']).CalendarTool, 'calendar')
+        # _try_import(lambda: __import__('src.tools.calendar_tool', fromlist=['CalendarTool']).CalendarTool, 'calendar')  # Disabled: use calendar_mcp instead
+        _try_import(lambda: __import__('src.tools.calendar_mcp_tool', fromlist=['CalendarMCPTool']).CalendarMCPTool, 'calendar_mcp')
         _try_import(lambda: __import__('src.tools.alarm_tool', fromlist=['AlarmTool']).AlarmTool, 'alarm')
         _try_import(lambda: __import__('src.tools.vision_tool', fromlist=['VisionTool']).VisionTool, 'vision')
         _try_import(lambda: __import__('src.tools.dummy_tools', fromlist=['AirconTool']).AirconTool, 'aircon')

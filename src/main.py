@@ -85,6 +85,12 @@ async def websocket_voice_endpoint(websocket: WebSocket):
     """音声通信用WebSocketエンドポイント"""
     await app.state.websocket_manager.connect(websocket)
 
+    # ステータスコールバックを設定
+    async def send_status(message: str):
+        await websocket.send_json({"type": "status", "message": message})
+
+    app.state.voice_agent.status_callback = send_status
+
     try:
         while True:
             # 音声データの受信
@@ -683,6 +689,48 @@ async def get_gmail_info():
 
     except Exception as e:
         logger.error(f"Failed to get Gmail info: {e}")
+        return {"connected": False, "error": str(e)}
+
+
+@app.get("/api/calendar/info")
+async def get_calendar_info():
+    """カレンダー連携情報を取得"""
+    try:
+        calendar_tool = app.state.voice_agent.tools.get_tool("calendar")
+        if not calendar_tool:
+            return {"connected": False, "error": "Calendar tool not available"}
+
+        # 認証情報が存在するか確認
+        if hasattr(calendar_tool, 'service') and calendar_tool.service:
+            try:
+                # トークンファイルから情報を読み取る
+                import json
+                import os
+                token_file = "./mcp_servers/calendar-mcp/.gcp-saved-tokens.json"
+
+                email = "連携済み"
+                if os.path.exists(token_file):
+                    with open(token_file, 'r') as f:
+                        token_data = json.load(f)
+                        email = token_data.get("account", email)
+
+                # カレンダー一覧を取得
+                calendar_list = calendar_tool.service.calendarList().list().execute()
+                calendars = [cal.get('summary', 'Unnamed') for cal in calendar_list.get('items', [])]
+
+                return {
+                    "connected": True,
+                    "email": email,
+                    "calendars": calendars[:5]  # 最初の5個まで
+                }
+            except Exception as e:
+                logger.error(f"Failed to get Calendar info: {e}")
+                return {"connected": False, "error": "Failed to get calendar info"}
+        else:
+            return {"connected": False, "error": "Calendar not authenticated"}
+
+    except Exception as e:
+        logger.error(f"Error getting Calendar info: {e}")
         return {"connected": False, "error": str(e)}
 
 

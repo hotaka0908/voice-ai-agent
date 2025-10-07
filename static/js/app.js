@@ -106,6 +106,12 @@ class VoiceAgent {
             this.handleVoiceMessage(data);
         });
 
+        // ステータス更新処理
+        this.websocketManager.on('status', (data) => {
+            console.log('📊 Status event received:', data);
+            this.showProcessingStatus(data.message);
+        });
+
         this.websocketManager.on('connect', () => {
             this.uiManager.setConnectionStatus('connected');
         });
@@ -133,6 +139,7 @@ class VoiceAgent {
 
         // Gmailダイアログのイベントリスナー
         this.setupGmailListeners();
+        this.setupCalendarListeners();
     }
 
     setupAudioListeners() {
@@ -352,6 +359,22 @@ class VoiceAgent {
         // 処理中状態をリセット
         console.log('✅ Resetting processing state');
         this.uiManager.setStatus('ready', 'システム準備完了');
+    }
+
+    showProcessingStatus(message) {
+        console.log('📊 Showing processing status:', message);
+        const statusDiv = document.getElementById('processing-status');
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+
+            // 完了メッセージの場合は自動的に非表示
+            if (message.includes('完了') || message.includes('✅')) {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 2000);
+            }
+        }
     }
 
     async handleResponse(data) {
@@ -918,6 +941,9 @@ class VoiceAgent {
             'mobile_bridge': '📱',
             'mcp': '🔌',
             'gmail': '📧',
+            'calendar': '📅',
+            'alarm': '⏰',
+            'vision': '👁️',
             'aircon': '❄️',
             'light': '💡',
             'taxi': '🚕',
@@ -938,6 +964,7 @@ class VoiceAgent {
             'gmail': 'Gmail',
             'calendar': 'カレンダー',
             'alarm': 'アラーム',
+            'vision': 'ビジョン',
             'aircon': 'エアコン',
             'light': '電気(リビング)',
             'taxi': 'タクシー',
@@ -948,7 +975,7 @@ class VoiceAgent {
 
     isToolConnected(toolName) {
         // 連携済みのツールを定義
-        const connectedTools = ['gmail', 'alarm', 'vision'];
+        const connectedTools = ['gmail', 'calendar', 'alarm', 'vision'];
         return connectedTools.includes(toolName);
     }
 
@@ -958,8 +985,7 @@ class VoiceAgent {
         if (toolName === 'alarm') {
             this.openAlarmDialog();
         } else if (toolName === 'calendar') {
-            // カレンダー機能は未実装
-            alert('カレンダー機能は準備中です');
+            this.showCalendarInfo();
         } else if (toolName === 'gmail') {
             this.showGmailInfo();
         }
@@ -1011,6 +1037,53 @@ class VoiceAgent {
         }
     }
 
+    async showCalendarInfo() {
+        // ダイアログを開く
+        document.getElementById('calendarDialog').style.display = 'flex';
+
+        try {
+            console.log('📅 Fetching Calendar info from /api/calendar/info...');
+            const response = await fetch('/api/calendar/info');
+            console.log('📅 Response status:', response.status);
+            const data = await response.json();
+            console.log('📅 Calendar info data:', data);
+
+            const calendarStatus = document.getElementById('calendarStatus');
+
+            if (data.connected) {
+                const displayEmail = data.email || (data.calendars && data.calendars.length > 0 ? data.calendars[0] : '連携済み');
+                calendarStatus.innerHTML = `
+                    <div class="gmail-connected">
+                        <div class="status-icon">✅</div>
+                        <h4>カレンダー連携中</h4>
+                        <div class="gmail-email">
+                            <label>連携アカウント:</label>
+                            <p>${displayEmail}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                calendarStatus.innerHTML = `
+                    <div class="gmail-disconnected">
+                        <div class="status-icon">❌</div>
+                        <h4>カレンダー未連携</h4>
+                        <p class="error-message">${data.error || '認証情報が見つかりません'}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to get Calendar info:', error);
+            const calendarStatus = document.getElementById('calendarStatus');
+            calendarStatus.innerHTML = `
+                <div class="gmail-error">
+                    <div class="status-icon">⚠️</div>
+                    <h4>エラー</h4>
+                    <p class="error-message">カレンダー情報の取得に失敗しました</p>
+                </div>
+            `;
+        }
+    }
+
     setupGmailListeners() {
         // Gmailダイアログの閉じるボタン
         document.getElementById('closeGmailDialog').addEventListener('click', () => {
@@ -1031,6 +1104,21 @@ class VoiceAgent {
 
     closeGmailDialog() {
         document.getElementById('gmailDialog').style.display = 'none';
+    }
+
+    setupCalendarListeners() {
+        // カレンダーダイアログの閉じるボタン
+        document.getElementById('closeCalendarDialog').addEventListener('click', () => {
+            this.closeCalendarDialog();
+        });
+
+        document.getElementById('closeCalendarInfoBtn').addEventListener('click', () => {
+            this.closeCalendarDialog();
+        });
+    }
+
+    closeCalendarDialog() {
+        document.getElementById('calendarDialog').style.display = 'none';
     }
 
     updateAgentImage(voice) {
@@ -1122,6 +1210,24 @@ class VoiceAgent {
     // ============= アラーム機能 =============
 
     setupAlarmListeners() {
+        // 時刻入力の検証
+        const hourInput = document.getElementById('alarmHour');
+        const minuteInput = document.getElementById('alarmMinute');
+
+        hourInput.addEventListener('blur', () => {
+            let value = parseInt(hourInput.value) || 0;
+            if (value < 0) value = 0;
+            if (value > 23) value = 23;
+            hourInput.value = value.toString().padStart(2, '0');
+        });
+
+        minuteInput.addEventListener('blur', () => {
+            let value = parseInt(minuteInput.value) || 0;
+            if (value < 0) value = 0;
+            if (value > 59) value = 59;
+            minuteInput.value = value.toString().padStart(2, '0');
+        });
+
         // アラームダイアログの閉じるボタン
         document.getElementById('closeAlarmDialog').addEventListener('click', () => {
             this.closeAlarmDialog();
@@ -1152,15 +1258,24 @@ class VoiceAgent {
     closeAlarmDialog() {
         document.getElementById('alarmDialog').style.display = 'none';
         // フォームをクリア
-        document.getElementById('alarmTime').value = '';
+        document.getElementById('alarmHour').value = '12';
+        document.getElementById('alarmMinute').value = '00';
         document.getElementById('alarmMessage').value = '';
         document.getElementById('alarmRepeat').checked = false;
     }
 
     async setAlarm() {
-        const time = document.getElementById('alarmTime').value;
+        const hour = document.getElementById('alarmHour').value;
+        const minute = document.getElementById('alarmMinute').value;
         const message = document.getElementById('alarmMessage').value;
         const repeat = document.getElementById('alarmRepeat').checked;
+
+        if (!hour || !minute) {
+            alert('時刻を入力してください');
+            return;
+        }
+
+        const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
 
         if (!time) {
             alert('時刻を入力してください');

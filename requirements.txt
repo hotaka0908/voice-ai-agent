@@ -35,8 +35,7 @@ asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.23
 alembic==1.12.1
 
-# Smart Home Integration
-homeassistant-api==0.1.10
+# HTTP Client
 requests==2.31.0
 
 # Utilities

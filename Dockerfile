@@ -27,4 +27,4 @@ RUN chmod +x start.sh
 EXPOSE 8000
 
 # アプリケーション起動
-CMD ["./start.sh"]
+CMD ["python3", "run.py"]

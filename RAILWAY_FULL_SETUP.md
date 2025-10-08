@@ -66,7 +66,25 @@ LOG_LEVEL=INFO
 
 ### ステップ2: 環境変数を一括追加
 
-上記の環境変数をコピー&ペーストで追加：
+Railwayダッシュボードの「Variables」タブで、以下のコマンドを使ってローカルファイルから値を取得し、環境変数として設定：
+
+**ローカルで実行（認証情報を取得）:**
+```bash
+# Gmail credentials
+cat data/gmail_credentials.json
+
+# Gmail token (最新版を使用)
+cat data/gmail_token.json
+
+# Calendar Client ID & Secret
+cat mcp_servers/calendar-mcp/.env | grep GOOGLE_CLIENT
+
+# Calendar token
+cat mcp_servers/calendar-mcp/.gcp-saved-tokens.json
+```
+
+**Railwayに設定:**
+上記コマンドで出力された内容をコピーし、Railway環境変数に貼り付けます。
 
 **注意事項:**
 - JSON形式の変数（`GMAIL_CREDENTIALS_JSON`等）は、**シングルクォート**で囲む

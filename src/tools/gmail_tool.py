@@ -177,16 +177,19 @@ class GmailTool(Tool):
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
                     # トークンをリフレッシュ
+                    logger.info("Refreshing expired Gmail token...")
                     creds.refresh(Request())
-                else:
-                    # 新しい認証フローを開始
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_file, self.SCOPES)
-                    creds = flow.run_local_server(port=0)
 
-                # トークンを保存
-                with open(self.token_file, 'w') as token:
-                    token.write(creds.to_json())
+                    # 更新したトークンを保存
+                    with open(self.token_file, 'w') as token:
+                        token.write(creds.to_json())
+                    logger.info("Gmail token refreshed successfully")
+                else:
+                    # Railway環境では対話的な認証は不可能
+                    # ローカルで事前に認証を完了し、環境変数で提供する必要がある
+                    logger.error("No valid Gmail credentials found. Please set GMAIL_TOKEN_JSON environment variable with valid credentials.")
+                    logger.error("Run authentication locally first and set the token in Railway environment variables.")
+                    return False
 
             # Gmail API サービスを構築
             self.service = build('gmail', 'v1', credentials=creds)

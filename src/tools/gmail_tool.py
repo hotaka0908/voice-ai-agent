@@ -135,6 +135,21 @@ class GmailTool(Tool):
             # データディレクトリの作成
             os.makedirs("data", exist_ok=True)
 
+            # 環境変数から認証情報を読み込む（Railway対応）
+            credentials_json = os.getenv('GMAIL_CREDENTIALS_JSON')
+            token_json = os.getenv('GMAIL_TOKEN_JSON')
+
+            # 環境変数がある場合はファイルに書き込む
+            if credentials_json:
+                with open(self.credentials_file, 'w') as f:
+                    f.write(credentials_json)
+                logger.info("Gmail credentials loaded from environment variable")
+
+            if token_json:
+                with open(self.token_file, 'w') as f:
+                    f.write(token_json)
+                logger.info("Gmail token loaded from environment variable")
+
             # 認証情報の確認
             if not os.path.exists(self.credentials_file):
                 logger.warning(f"Gmail credentials file not found: {self.credentials_file}")

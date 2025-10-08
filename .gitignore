@@ -95,6 +95,9 @@ chroma_db/
 .env
 *.key
 *.pem
+*token*.json
+*credential*.json
+.gcp-saved-tokens.json
 
 # Jupyter Notebooks
 .ipynb_checkpoints

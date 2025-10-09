@@ -1,7 +1,8 @@
 """
-Gmail Authentication API Router
+Gmail & Calendar Authentication API Router
 
-マルチユーザー対応のGmail OAuth認証エンドポイント
+マルチユーザー対応のGmail & Calendar OAuth認証エンドポイント
+1度の認証でGmailとCalendar両方のアクセス権を取得
 """
 
 import os
@@ -18,11 +19,13 @@ from src.middleware.session import session_manager
 
 router = APIRouter()
 
-# Gmail APIのスコープ
+# Gmail & Calendar APIのスコープ
+# 注: Google OAuth では同じクライアントで複数のスコープを要求する必要がある
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.compose'
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/calendar'
 ]
 
 # 一時的に認証中のセッションを記録（state → session_id）
@@ -33,7 +36,9 @@ auth_states = {}
 @router.get("/api/gmail/auth/start")
 async def gmail_auth_start(session_id: str = Depends(get_session_id)):
     """
-    Gmail OAuth認証を開始
+    Gmail & Calendar OAuth認証を開始
+
+    1度の認証でGmailとCalendar両方のアクセス権を取得します
 
     Args:
         session_id: セッションID（ヘッダーから自動取得）
@@ -44,7 +49,7 @@ async def gmail_auth_start(session_id: str = Depends(get_session_id)):
     Raises:
         HTTPException: 認証情報ファイルが見つからない場合
     """
-    logger.info(f"Starting Gmail OAuth for session: {session_id}")
+    logger.info(f"Starting Gmail & Calendar OAuth for session: {session_id}")
 
     # 認証情報ファイルの確認
     credentials_file = "data/gmail_credentials.json"
@@ -96,7 +101,7 @@ async def gmail_auth_start(session_id: str = Depends(get_session_id)):
 @router.get("/api/gmail/auth/callback")
 async def gmail_auth_callback(code: str, state: str):
     """
-    Gmail OAuth認証のコールバック
+    Gmail & Calendar OAuth認証のコールバック
 
     Google認証ページから戻ってくるエンドポイント
 
@@ -107,7 +112,7 @@ async def gmail_auth_callback(code: str, state: str):
     Returns:
         HTMLResponse: 成功/失敗ページ
     """
-    logger.info(f"Gmail OAuth callback received: state={state}")
+    logger.info(f"Gmail & Calendar OAuth callback received: state={state}")
 
     # stateからsession_idを取得
     session_id = auth_states.get(state)
@@ -163,12 +168,17 @@ async def gmail_auth_callback(code: str, state: str):
         flow.fetch_token(code=code)
         credentials = flow.credentials
 
-        # トークンをユーザーごとに保存
+        # トークンをユーザーごとに保存（GmailとCalendar共通）
         token_path = session_manager.get_gmail_token_path(session_id)
+        calendar_token_path = session_manager.get_calendar_token_path(session_id)
+
+        # 両方のパスに保存（Gmail ToolとCalendar Toolで使用）
         with open(token_path, 'w') as token_file:
             token_file.write(credentials.to_json())
+        with open(calendar_token_path, 'w') as token_file:
+            token_file.write(credentials.to_json())
 
-        logger.info(f"Gmail token saved for session: {session_id}")
+        logger.info(f"Gmail & Calendar token saved for session: {session_id}")
 
         # 使用済みstateを削除
         del auth_states[state]
@@ -205,8 +215,8 @@ async def gmail_auth_callback(code: str, state: str):
                 <body>
                     <div class="container">
                         <div class="icon">✅</div>
-                        <h1>Gmail連携が完了しました！</h1>
-                        <p class="message">このウィンドウを閉じてください。</p>
+                        <h1>Gmail & Calendar連携が完了しました！</h1>
+                        <p class="message">GmailとCalendarが両方使えるようになりました。<br>このウィンドウを閉じてください。</p>
                     </div>
                     <script>
                         // 親ウィンドウに成功を通知
@@ -271,7 +281,7 @@ async def gmail_auth_callback(code: str, state: str):
 @router.get("/api/gmail/status")
 async def gmail_status(session_id: str = Depends(get_session_id)):
     """
-    Gmail連携状態を取得
+    Gmail & Calendar連携状態を取得
 
     Args:
         session_id: セッションID（ヘッダーから自動取得）
@@ -279,12 +289,12 @@ async def gmail_status(session_id: str = Depends(get_session_id)):
     Returns:
         dict: 連携状態とメールアドレス
     """
-    logger.debug(f"Checking Gmail status for session: {session_id}")
+    logger.debug(f"Checking Gmail & Calendar status for session: {session_id}")
 
     token_path = session_manager.get_gmail_token_path(session_id)
 
     if not os.path.exists(token_path):
-        logger.info(f"No Gmail token found for session: {session_id}")
+        logger.info(f"No Gmail & Calendar token found for session: {session_id}")
         return {"connected": False, "email": None}
 
     try:
@@ -319,7 +329,7 @@ async def gmail_status(session_id: str = Depends(get_session_id)):
 @router.post("/api/gmail/disconnect")
 async def gmail_disconnect(session_id: str = Depends(get_session_id)):
     """
-    Gmail連携を解除
+    Gmail & Calendar連携を解除
 
     Args:
         session_id: セッションID（ヘッダーから自動取得）
@@ -327,15 +337,21 @@ async def gmail_disconnect(session_id: str = Depends(get_session_id)):
     Returns:
         dict: 成功メッセージ
     """
-    logger.info(f"Disconnecting Gmail for session: {session_id}")
+    logger.info(f"Disconnecting Gmail & Calendar for session: {session_id}")
 
     token_path = session_manager.get_gmail_token_path(session_id)
+    calendar_token_path = session_manager.get_calendar_token_path(session_id)
 
+    # 両方のトークンを削除
     if os.path.exists(token_path):
         os.remove(token_path)
         logger.info(f"Gmail token removed for session: {session_id}")
 
-    return {"success": True, "message": "Gmail連携を解除しました"}
+    if os.path.exists(calendar_token_path):
+        os.remove(calendar_token_path)
+        logger.info(f"Calendar token removed for session: {session_id}")
+
+    return {"success": True, "message": "Gmail & Calendar連携を解除しました"}
 
 
 def get_user_email(credentials: Credentials) -> str:

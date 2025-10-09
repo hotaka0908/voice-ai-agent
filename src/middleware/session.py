@@ -102,6 +102,18 @@ class SessionManager:
         """
         return str(self.get_data_path(session_id, "gmail_token"))
 
+    def get_calendar_token_path(self, session_id: str) -> str:
+        """
+        Calendarトークンのパスを取得
+
+        Args:
+            session_id: セッションID
+
+        Returns:
+            str: Calendarトークンファイルのパス
+        """
+        return str(self.get_data_path(session_id, "calendar_token"))
+
     def get_gmail_credentials_path(self, session_id: str) -> str:
         """
         Gmail認証情報のパスを取得（全ユーザー共通）

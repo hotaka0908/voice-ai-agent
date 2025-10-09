@@ -961,7 +961,7 @@ class VoiceAgent {
             'search': '検索',
             'mobile_bridge': 'モバイル連携',
             'mcp': 'MCP',
-            'gmail': 'Gmail',
+            'gmail': 'Gmail & Calendar',
             'calendar': 'カレンダー',
             'alarm': 'アラーム',
             'vision': 'ビジョン',
@@ -996,7 +996,7 @@ class VoiceAgent {
         document.getElementById('gmailDialog').style.display = 'flex';
 
         try {
-            console.log('📧 Checking Gmail status...');
+            console.log('📧 Checking Gmail & Calendar status...');
 
             // セッションIDを含めてリクエスト
             const headers = window.sessionManager.getHeaders();
@@ -1004,7 +1004,7 @@ class VoiceAgent {
 
             console.log('📧 Response status:', response.status);
             const data = await response.json();
-            console.log('📧 Gmail status:', data);
+            console.log('📧 Gmail & Calendar status:', data);
 
             const gmailStatus = document.getElementById('gmailStatus');
 
@@ -1013,11 +1013,12 @@ class VoiceAgent {
                 gmailStatus.innerHTML = `
                     <div class="gmail-connected">
                         <div class="status-icon">✅</div>
-                        <h4>Gmail連携中</h4>
+                        <h4>Gmail & Calendar連携中</h4>
                         <div class="gmail-email">
                             <label>連携アカウント:</label>
                             <p>${data.email}</p>
                         </div>
+                        <p class="info-message" style="font-size: 0.9rem; color: #666; margin: 0.5rem 0;">GmailとCalendarの両方が使用可能です</p>
                         <button onclick="window.voiceAgent.disconnectGmail()" class="disconnect-btn">
                             連携解除
                         </button>
@@ -1027,9 +1028,9 @@ class VoiceAgent {
                 // 未連携
                 gmailStatus.innerHTML = `
                     <div class="gmail-disconnected">
-                        <div class="status-icon">📧</div>
-                        <h4>Gmail未連携</h4>
-                        <p class="info-message">Gmailと連携してメール機能を使用できます</p>
+                        <div class="status-icon">📧📅</div>
+                        <h4>Gmail & Calendar未連携</h4>
+                        <p class="info-message">1度の認証でGmailとCalendarの両方が使えます</p>
                         <button onclick="window.voiceAgent.connectGmail()" class="connect-btn">
                             連携する
                         </button>

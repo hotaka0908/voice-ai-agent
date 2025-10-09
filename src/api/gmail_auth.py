@@ -19,6 +19,24 @@ from src.middleware.session import session_manager
 
 router = APIRouter()
 
+
+@router.get("/api/gmail/debug")
+async def gmail_debug():
+    """
+    デバッグ用エンドポイント：Gmail認証設定の状態を確認
+    """
+    credentials_file = "data/gmail_credentials.json"
+    credentials_json = os.getenv('GMAIL_CREDENTIALS_JSON')
+    app_url = os.getenv('APP_URL', 'http://localhost:8000')
+
+    return {
+        "has_env_credentials": bool(credentials_json),
+        "env_credentials_length": len(credentials_json) if credentials_json else 0,
+        "has_file_credentials": os.path.exists(credentials_file),
+        "app_url": app_url,
+        "redirect_uri": f"{app_url}/api/gmail/auth/callback"
+    }
+
 # Gmail & Calendar APIのスコープ
 # 注: Google OAuth では同じクライアントで複数のスコープを要求する必要がある
 SCOPES = [

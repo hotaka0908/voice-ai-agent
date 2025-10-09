@@ -52,7 +52,7 @@ class GmailTool(Tool):
     def is_dangerous(self) -> bool:
         return False
 
-    def __init__(self):
+    def __init__(self, session_id: str = None):
         super().__init__()
 
         # Gmail API の設定
@@ -62,7 +62,8 @@ class GmailTool(Tool):
             'https://www.googleapis.com/auth/gmail.compose'
         ]
         self.credentials_file = "data/gmail_credentials.json"
-        self.token_file = "data/gmail_token.json"
+        self.token_file = "data/gmail_token.json"  # デフォルト（環境変数用）
+        self.session_id = session_id  # セッションID
         self.service = None
 
     def get_schema(self) -> ToolSchema:
@@ -164,9 +165,22 @@ class GmailTool(Tool):
             logger.error(f"Failed to initialize Gmail Tool: {e}")
             return False
 
-    async def _authenticate(self) -> bool:
-        """Gmail API認証"""
+    async def _authenticate(self, session_id: str = None) -> bool:
+        """Gmail API認証（セッション対応）"""
         try:
+            # セッションIDが指定されている場合は、そのセッションのトークンを使用
+            if session_id:
+                self.session_id = session_id
+
+            # セッションIDがある場合は、セッション管理からトークンパスを取得
+            if self.session_id:
+                from src.middleware.session import session_manager
+                self.token_file = session_manager.get_gmail_token_path(self.session_id)
+                logger.info(f"Using session-specific token: {self.token_file}")
+            else:
+                # フォールバック: 環境変数またはデフォルトのトークンファイル
+                logger.info(f"Using default token file: {self.token_file}")
+
             creds = None
 
             # 既存のトークンファイルがあるかチェック
@@ -209,11 +223,14 @@ class GmailTool(Tool):
                 error="Gmail API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-api-python-client"
             )
 
+        # セッションIDをパラメータから取得（存在する場合）
+        session_id = parameters.get('session_id')
+
         action = parameters.get("action", "").lower()
 
         # 認証確認
         if not self.service:
-            if not await self._authenticate():
+            if not await self._authenticate(session_id=session_id):
                 return ToolResult(
                     success=False,
                     result="",

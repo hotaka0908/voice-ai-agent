@@ -996,15 +996,20 @@ class VoiceAgent {
         document.getElementById('gmailDialog').style.display = 'flex';
 
         try {
-            console.log('📧 Fetching Gmail info from /api/gmail/info...');
-            const response = await fetch('/api/gmail/info');
+            console.log('📧 Checking Gmail status...');
+
+            // セッションIDを含めてリクエスト
+            const headers = window.sessionManager.getHeaders();
+            const response = await fetch('/api/gmail/status', { headers });
+
             console.log('📧 Response status:', response.status);
             const data = await response.json();
-            console.log('📧 Gmail info data:', data);
+            console.log('📧 Gmail status:', data);
 
             const gmailStatus = document.getElementById('gmailStatus');
 
             if (data.connected && data.email) {
+                // 連携済み
                 gmailStatus.innerHTML = `
                     <div class="gmail-connected">
                         <div class="status-icon">✅</div>
@@ -1013,19 +1018,26 @@ class VoiceAgent {
                             <label>連携アカウント:</label>
                             <p>${data.email}</p>
                         </div>
+                        <button onclick="window.voiceAgent.disconnectGmail()" class="disconnect-btn">
+                            連携解除
+                        </button>
                     </div>
                 `;
             } else {
+                // 未連携
                 gmailStatus.innerHTML = `
                     <div class="gmail-disconnected">
-                        <div class="status-icon">❌</div>
+                        <div class="status-icon">📧</div>
                         <h4>Gmail未連携</h4>
-                        <p class="error-message">${data.error || '認証情報が見つかりません'}</p>
+                        <p class="info-message">Gmailと連携してメール機能を使用できます</p>
+                        <button onclick="window.voiceAgent.connectGmail()" class="connect-btn">
+                            連携する
+                        </button>
                     </div>
                 `;
             }
         } catch (error) {
-            console.error('Failed to get Gmail info:', error);
+            console.error('Failed to get Gmail status:', error);
             const gmailStatus = document.getElementById('gmailStatus');
             gmailStatus.innerHTML = `
                 <div class="gmail-error">
@@ -1034,6 +1046,90 @@ class VoiceAgent {
                     <p class="error-message">Gmail情報の取得に失敗しました</p>
                 </div>
             `;
+        }
+    }
+
+    async connectGmail() {
+        try {
+            console.log('🔗 Starting Gmail connection...');
+
+            // 認証URLを取得
+            const headers = window.sessionManager.getHeaders();
+            const response = await fetch('/api/gmail/auth/start', { headers });
+
+            if (!response.ok) {
+                throw new Error('Failed to start Gmail authentication');
+            }
+
+            const data = await response.json();
+            console.log('📧 Auth URL:', data.auth_url);
+
+            // ポップアップで認証ページを開く
+            const width = 600;
+            const height = 700;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+
+            const authWindow = window.open(
+                data.auth_url,
+                'Gmail認証',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+
+            if (!authWindow) {
+                alert('ポップアップがブロックされました。ポップアップを許可してください。');
+                return;
+            }
+
+            // postMessageで結果を受け取る
+            window.addEventListener('message', async (event) => {
+                if (event.data.type === 'gmail_auth_success') {
+                    console.log('✅ Gmail連携成功！');
+
+                    // ダイアログを更新
+                    await this.showGmailInfo();
+
+                    // ツールリストを再読み込み
+                    await this.loadAvailableTools();
+                }
+            }, { once: true });
+
+        } catch (error) {
+            console.error('Failed to connect Gmail:', error);
+            alert('Gmail連携に失敗しました: ' + error.message);
+        }
+    }
+
+    async disconnectGmail() {
+        if (!confirm('Gmail連携を解除しますか？')) {
+            return;
+        }
+
+        try {
+            console.log('🔌 Disconnecting Gmail...');
+
+            const headers = window.sessionManager.getHeaders();
+            const response = await fetch('/api/gmail/disconnect', {
+                method: 'POST',
+                headers
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to disconnect Gmail');
+            }
+
+            const data = await response.json();
+            console.log('✅ Gmail連携解除成功:', data.message);
+
+            // ダイアログを更新
+            await this.showGmailInfo();
+
+            // ツールリストを再読み込み
+            await this.loadAvailableTools();
+
+        } catch (error) {
+            console.error('Failed to disconnect Gmail:', error);
+            alert('Gmail連携解除に失敗しました: ' + error.message);
         }
     }
 

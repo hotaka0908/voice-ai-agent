@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from src.core.agent import VoiceAgent
 from src.core.websocket_manager import WebSocketManager
 from src.core.tool_base import ToolResult
+from src.api.gmail_auth import router as gmail_auth_router
 
 # 環境変数の読み込み
 load_dotenv()
@@ -66,6 +67,9 @@ os.makedirs("data/memory", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/data", StaticFiles(directory="data"), name="data")
 templates = Jinja2Templates(directory="templates")
+
+# APIルーターを登録
+app.include_router(gmail_auth_router)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -51,13 +51,15 @@ async def gmail_auth_start(session_id: str = Depends(get_session_id)):
     """
     logger.info(f"Starting Gmail & Calendar OAuth for session: {session_id}")
 
-    # 認証情報ファイルの確認
+    # 認証情報ファイルの確認（環境変数または物理ファイル）
     credentials_file = "data/gmail_credentials.json"
-    if not os.path.exists(credentials_file):
-        logger.error("Gmail credentials file not found")
+    credentials_json = os.getenv('GMAIL_CREDENTIALS_JSON')
+
+    if not credentials_json and not os.path.exists(credentials_file):
+        logger.error("Gmail credentials not found in environment or file")
         raise HTTPException(
             status_code=500,
-            detail="Gmail credentials file not found. Please configure OAuth credentials first."
+            detail="Gmail credentials not configured. Please set GMAIL_CREDENTIALS_JSON environment variable or provide credentials file."
         )
 
     try:
@@ -67,12 +69,23 @@ async def gmail_auth_start(session_id: str = Depends(get_session_id)):
 
         logger.debug(f"Redirect URI: {redirect_uri}")
 
-        # OAuth2フローの作成
-        flow = Flow.from_client_secrets_file(
-            credentials_file,
-            scopes=SCOPES,
-            redirect_uri=redirect_uri
-        )
+        # OAuth2フローの作成（環境変数またはファイルから）
+        if credentials_json:
+            import json
+            credentials_dict = json.loads(credentials_json)
+            flow = Flow.from_client_config(
+                credentials_dict,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri
+            )
+            logger.debug("Using credentials from environment variable")
+        else:
+            flow = Flow.from_client_secrets_file(
+                credentials_file,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri
+            )
+            logger.debug("Using credentials from file")
 
         # 認証URLの生成
         auth_url, state = flow.authorization_url(
@@ -155,15 +168,27 @@ async def gmail_auth_callback(code: str, state: str):
     try:
         # 認証コードをトークンに交換
         credentials_file = "data/gmail_credentials.json"
+        credentials_json = os.getenv('GMAIL_CREDENTIALS_JSON')
         app_url = os.getenv('APP_URL', 'http://localhost:8000')
         redirect_uri = f"{app_url}/api/gmail/auth/callback"
 
-        flow = Flow.from_client_secrets_file(
-            credentials_file,
-            scopes=SCOPES,
-            redirect_uri=redirect_uri,
-            state=state
-        )
+        # OAuth2フローの作成（環境変数またはファイルから）
+        if credentials_json:
+            import json
+            credentials_dict = json.loads(credentials_json)
+            flow = Flow.from_client_config(
+                credentials_dict,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri,
+                state=state
+            )
+        else:
+            flow = Flow.from_client_secrets_file(
+                credentials_file,
+                scopes=SCOPES,
+                redirect_uri=redirect_uri,
+                state=state
+            )
 
         flow.fetch_token(code=code)
         credentials = flow.credentials

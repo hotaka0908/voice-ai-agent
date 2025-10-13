@@ -287,10 +287,11 @@ class RuleProcessor:
             ]
 
         if any(k in user_input for k in read_keywords):
-            # 未読を優先してメール一覧を取得（未読が無ければ最新5件）
+            # クエリ指定なし（全メール対象、最新5件）
+            # 未読がない場合も考慮して is:unread は使わない
             return [{
                 "name": "gmail",
-                "parameters": {"action": "list", "query": "is:unread", "max_results": 5}
+                "parameters": {"action": "list", "max_results": 5}
             }]
 
         # それ以外は一覧（最新5件）

@@ -89,6 +89,14 @@ async def websocket_voice_endpoint(websocket: WebSocket):
     """音声通信用WebSocketエンドポイント"""
     await app.state.websocket_manager.connect(websocket)
 
+    # セッションIDをクエリパラメータまたはヘッダーから取得
+    session_id = websocket.query_params.get("session_id") or websocket.headers.get("x-session-id")
+    if session_id:
+        app.state.voice_agent.set_session_id(session_id)
+        logger.info(f"Voice WebSocket session_id set: {session_id}")
+    else:
+        logger.warning("Voice WebSocket connected without session_id")
+
     # ステータスコールバックを設定
     async def send_status(message: str):
         await websocket.send_json({"type": "status", "message": message})

@@ -23,6 +23,10 @@ class WebSocketManager {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const host = window.location.host;
 
+            // セッションIDを取得
+            const sessionId = window.sessionManager ? window.sessionManager.getSessionId() : null;
+            const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
             // チャット用WebSocketの接続
             const chatUrl = `${protocol}//${host}/ws/chat`;
             this.chatWs = new WebSocket(chatUrl);
@@ -56,9 +60,10 @@ class WebSocketManager {
                 this.emit('error', error);
             };
 
-            // 音声用WebSocketの接続
-            const voiceUrl = `${protocol}//${host}/ws/voice`;
+            // 音声用WebSocketの接続（セッションIDをクエリパラメータで送信）
+            const voiceUrl = `${protocol}//${host}/ws/voice${sessionParam}`;
             this.voiceWs = new WebSocket(voiceUrl);
+            console.log('Voice WebSocket connecting with session_id:', sessionId);
 
             this.voiceWs.onopen = () => {
                 console.log('Voice WebSocket connected');

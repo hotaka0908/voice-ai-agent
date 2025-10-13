@@ -744,6 +744,31 @@ class HybridLLM:
                 "",
             ])
 
+        # 【メール状態】（継続リクエストの処理用）
+        if context_manager and hasattr(context_manager, 'get_email_state'):
+            email_state = context_manager.get_email_state()
+            if email_state and email_state.get("shown_email_ids"):
+                prompt_parts.extend([
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                    "【メール表示状態】",
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                    "",
+                    f"📧 既に表示済みのメール数: {len(email_state['shown_email_ids'])}件",
+                    f"📊 次に表示する位置（オフセット）: {email_state['current_offset']}",
+                    "",
+                    "⚠️ 継続リクエストへの対応:",
+                    "• 「他のメールも確認して」「次のメールを見せて」等の要求の場合:",
+                    f"  - 既に{len(email_state['shown_email_ids'])}件表示済みなので、次の5件を取得してください",
+                    "  - Gmail検索で既表示メールを除外する方法:",
+                    f"    query=\"-in:inbox\" は使用不可（代わりにmax_resultsとskipを調整）",
+                    "  - 実装方法: より多くの件数を取得して、既表示分をスキップ",
+                    f"    例: TOOL_CALL: {{\"name\":\"gmail\",\"parameters\":{{\"action\":\"list\",\"max_results\":{email_state['current_offset'] + 5}}}}}",
+                    "    ※ ツール側で最新分から取得し、既表示分は応答で省略される",
+                    "",
+                    "• 「全部見せて」等の要求の場合は max_results を大きめに設定",
+                    "",
+                ])
+
         return "\n".join(prompt_parts)
 
     def _replace_placeholder_email_ids(self, tool_calls: List[Dict], actual_email_id: str) -> List[Dict]:

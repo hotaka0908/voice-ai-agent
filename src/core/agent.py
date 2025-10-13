@@ -276,6 +276,9 @@ class VoiceAgent:
                 # Gmailツールの結果からメールIDを抽出してコンテキストに保存
                 await self._extract_and_store_email_ids(tool_results)
 
+                # メール状態を更新（次回の「他のメール」要求に備える）
+                await self._update_email_state_from_results(tool_results)
+
                 # ツール結果を含めて再度LLM処理
                 if self.status_callback:
                     await self.status_callback("🗣️ 応答を生成中...")

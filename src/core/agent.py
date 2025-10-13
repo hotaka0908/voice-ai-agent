@@ -185,15 +185,17 @@ class VoiceAgent:
                 # Gmailツールの結果からメールIDを抽出してコンテキストに保存
                 await self._extract_and_store_email_ids(tool_results)
 
-                # ツール結果を含めて再度LLM処理（自然な応答を生成）
-                if self.status_callback:
-                    await self.status_callback("🗣️ 応答を生成中...")
+                # Gmailツールは音声向けフォーマット済みなので、結果をそのまま使用
+                # （ツールが既に _summarize_body() で要約済み）
+                final_response = ""
+                for tool_name, result in tool_results.items():
+                    if not tool_name.endswith("_metadata"):
+                        final_response = str(result)
+                        break
 
-                final_response = await self.llm.generate_final_response(
-                    original_request=text,
-                    tool_results=tool_results,
-                    context=self.context.get_context()
-                )
+                # フォールバック
+                if not final_response:
+                    final_response = "処理が完了しました。"
 
                 await self.context.add_assistant_message(final_response)
                 await self.memory.store_interaction(text, final_response)

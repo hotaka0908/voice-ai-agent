@@ -41,6 +41,15 @@ class ContextManager:
         self.latest_email_id: Optional[str] = None  # 最新のメールIDを保存
         self.is_initialized = False
 
+        # メール状態トラッキング
+        self.email_state = {
+            "last_action": None,  # "list", "read", "reply"
+            "shown_email_ids": [],  # 既に表示したメールID
+            "last_shown_count": 0,  # 前回表示した件数
+            "total_available": None,  # 利用可能な総メール数
+            "current_offset": 0,  # 現在のオフセット（次に表示する位置）
+        }
+
     async def initialize(self):
         """コンテキストマネージャーの初期化"""
         try:
@@ -225,6 +234,34 @@ class ContextManager:
         self.latest_email_id = None
         logger.debug("Latest email ID cleared")
 
+    # メール状態管理メソッド
+    def update_email_state(self, action: str, shown_ids: List[str], shown_count: int):
+        """メール表示状態を更新"""
+        self.email_state["last_action"] = action
+        self.email_state["shown_email_ids"].extend(shown_ids)
+        self.email_state["last_shown_count"] = shown_count
+        self.email_state["current_offset"] += shown_count
+        logger.debug(f"Updated email state: action={action}, shown={shown_count}, offset={self.email_state['current_offset']}")
+
+    def get_email_state(self) -> Dict[str, Any]:
+        """現在のメール状態を取得"""
+        return self.email_state.copy()
+
+    def reset_email_state(self):
+        """メール状態をリセット"""
+        self.email_state = {
+            "last_action": None,
+            "shown_email_ids": [],
+            "last_shown_count": 0,
+            "total_available": None,
+            "current_offset": 0,
+        }
+        logger.debug("Email state reset")
+
+    def has_shown_emails(self) -> bool:
+        """既にメールを表示したかどうか"""
+        return len(self.email_state["shown_email_ids"]) > 0
+
     async def cleanup(self):
         """クリーンアップ処理"""
         logger.info("Cleaning up Context Manager...")
@@ -232,4 +269,5 @@ class ContextManager:
         self.messages.clear()
         self.user_preferences.clear()
         self.latest_email_id = None
+        self.reset_email_state()
         self.is_initialized = False

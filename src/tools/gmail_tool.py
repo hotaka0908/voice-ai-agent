@@ -340,8 +340,12 @@ class GmailTool(Tool):
             for email in email_list[:3]:  # 最初の3件のみログ
                 logger.debug(f"  - {email['from_name']}: {email['subject']}")
 
-            # メタデータにメールIDを含める（ID抽出用）
-            metadata = {"latest_email_id": email_list[0]['id'] if email_list else None}
+            # メタデータにメールIDリストを含める（状態トラッキング用）
+            metadata = {
+                "latest_email_id": email_list[0]['id'] if email_list else None,
+                "shown_email_ids": [e['id'] for e in email_list],  # 表示したメールIDリスト
+                "shown_count": len(email_list)
+            }
 
             return ToolResult(success=True, result=voice_text, metadata=metadata)
 

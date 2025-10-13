@@ -138,7 +138,8 @@ class VoiceAgent:
             rule_response = await self.rule_processor.process_input(
                 text,
                 context=self.context.get_context(),
-                memory_tool=memory_tool
+                memory_tool=memory_tool,
+                context_manager=self.context
             )
 
             # ルールにマッチし、即時応答がある場合はそのまま返す
@@ -184,6 +185,9 @@ class VoiceAgent:
 
                 # Gmailツールの結果からメールIDを抽出してコンテキストに保存
                 await self._extract_and_store_email_ids(tool_results)
+
+                # メール状態を更新（次回の「他のメール」要求に備える）
+                await self._update_email_state_from_results(tool_results)
 
                 # Gmailツールは音声向けフォーマット済みなので、結果をそのまま使用
                 # （ツールが既に _summarize_body() で要約済み）
@@ -485,6 +489,29 @@ class VoiceAgent:
 
         logger.info(f"Final updated params: {updated_params}")
         return updated_params
+
+    async def _update_email_state_from_results(self, tool_results: Dict[str, Any]):
+        """ツール実行結果からメール状態を更新"""
+        try:
+            gmail_metadata = tool_results.get("gmail_metadata")
+
+            if not gmail_metadata or not isinstance(gmail_metadata, dict):
+                return
+
+            # メタデータから情報を取得
+            shown_ids = gmail_metadata.get("shown_email_ids", [])
+            shown_count = len(shown_ids)
+
+            if shown_count > 0:
+                self.context.update_email_state(
+                    action="list",
+                    shown_ids=shown_ids,
+                    shown_count=shown_count
+                )
+                logger.info(f"Updated email state: {shown_count} emails shown")
+
+        except Exception as e:
+            logger.error(f"Failed to update email state: {e}")
 
     async def _get_current_timestamp(self) -> str:
         """現在のタイムスタンプをISO形式で返す"""

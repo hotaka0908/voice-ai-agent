@@ -152,13 +152,15 @@ class RuleProcessor:
         self.initialized = True
         logger.info("Rule Processor initialized successfully")
 
-    async def process_input(self, user_input: str, context: Dict = None, memory_tool=None) -> Optional[Dict[str, Any]]:
+    async def process_input(self, user_input: str, context: Dict = None, memory_tool=None, context_manager=None) -> Optional[Dict[str, Any]]:
         """
         ユーザー入力をルールベース処理
 
         Args:
             user_input: ユーザーの入力テキスト
             context: 会話コンテキスト
+            memory_tool: メモリツール
+            context_manager: コンテキストマネージャー
 
         Returns:
             ルールにマッチした場合の応答データ、マッチしない場合はNone
@@ -187,7 +189,16 @@ class RuleProcessor:
             if "action" in matched_rule:
                 # Gmailキーワードのときはツール提案を返す（LLMに依存せず実行可能にする）
                 if matched_rule["action"] == "use_gmail_tool":
-                    tool_calls = self._suggest_gmail_tool_calls(user_input_clean)
+                    # 複雑な意図（継続リクエスト）かどうかをチェック
+                    is_complex = self._is_complex_email_request(user_input_clean, context_manager)
+
+                    if is_complex:
+                        # 複雑なケースはLLMに委譲（Noneを返してAI処理に移行）
+                        logger.info("Complex email request detected - delegating to LLM")
+                        return None
+
+                    # 簡単なケースはルールベース処理
+                    tool_calls = self._suggest_gmail_tool_calls(user_input_clean, context_manager)
                     return {
                         "rule_name": matched_rule["name"],
                         "response": "",
@@ -218,8 +229,36 @@ class RuleProcessor:
             logger.error(f"Rule processing error: {e}")
             return None
 
-    def _suggest_gmail_tool_calls(self, user_input: str) -> List[Dict[str, Any]]:
-        """Gmail関連入力に対して適切なツール呼び出しを提案"""
+    def _is_complex_email_request(self, user_input: str, context_manager) -> bool:
+        """メールリクエストが複雑かどうかを判定"""
+        # 継続意図を示すキーワード
+        follow_up_keywords = ["他の", "次の", "別の", "もっと", "さらに", "その他", "追加", "続き", "それ以外"]
+
+        # 継続キーワードがあり、かつ既にメールを表示している場合は複雑
+        has_follow_up = any(k in user_input for k in follow_up_keywords)
+
+        if has_follow_up and context_manager and context_manager.has_shown_emails():
+            return True
+
+        # 特定の送信者や条件を含む場合も複雑（LLMに委譲）
+        complex_patterns = [
+            r"から.*メール",  # "田中からのメール"
+            r"について.*メール",  # "会議についてのメール"
+            r"件名.*メール",  # "件名が〇〇のメール"
+            r"\d+件.*メール",  # "3件のメール"
+            r"昨日.*メール",  # "昨日のメール"
+            r"今日.*メール",  # "今日のメール"
+            r"先週.*メール",  # "先週のメール"
+        ]
+
+        for pattern in complex_patterns:
+            if re.search(pattern, user_input):
+                return True
+
+        return False
+
+    def _suggest_gmail_tool_calls(self, user_input: str, context_manager=None) -> List[Dict[str, Any]]:
+        """Gmail関連入力に対して適切なツール呼び出しを提案（簡単なケースのみ）"""
         # 返信関連のキーワード
         reply_keywords = ["返信", "返事", "reply"]
         # 未読や読み取り関連のキーワード

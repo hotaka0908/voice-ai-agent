@@ -1049,6 +1049,7 @@ class HybridLLM:
             tool_summary = self._format_tool_results(tool_results)
             logger.debug(f"Tool summary: {tool_summary}")
 
+            # メッセージリストを構築
             messages = [
                 {"role": "system", "content":
                  "以下のツール実行結果を基に、ユーザーに分かりやすい応答を生成してください。\n"
@@ -1057,12 +1058,19 @@ class HybridLLM:
                  "• 応答構造: 結論を先に → 必要なら簡潔な補足\n"
                  "• ツールが返した結果をそのまま伝える（余計な解釈や説明を加えない）\n"
                  "• 技術的な詳細は省略し、自然な日本語で\n"
-                 "• 「〜ですね」「〜ですよ」など柔らかい語尾を使う"},
-                *context[-5:] if context else [],  # 最新5件のコンテキスト
+                 "• 「〜ですね」「〜ですよ」など柔らかい語尾を使う"}
+            ]
+
+            # コンテキストを追加（最新5件）
+            if context:
+                messages.extend(context[-5:])
+
+            # リクエストと結果を追加
+            messages.extend([
                 {"role": "user", "content": f"元のリクエスト: {original_request}"},
                 {"role": "assistant", "content": f"ツール実行結果:\n{tool_summary}"},
                 {"role": "user", "content": "上記の結果を1〜2文以内で簡潔に伝えてください。"}
-            ]
+            ])
 
             logger.debug(f"Sending {len(messages)} messages to LLM")
             response = await self._generate_with_fallback(messages)

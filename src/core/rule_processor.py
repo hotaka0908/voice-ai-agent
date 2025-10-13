@@ -248,10 +248,10 @@ class RuleProcessor:
             ]
 
         if any(k in user_input for k in read_keywords):
-            # 未読を優先して最新1件を読む（未読が無ければ最新）
+            # 未読を優先してメール一覧を取得（未読が無ければ最新5件）
             return [{
                 "name": "gmail",
-                "parameters": {"action": "read", "message_id": None, "query": "is:unread"}
+                "parameters": {"action": "list", "query": "is:unread", "max_results": 5}
             }]
 
         # それ以外は一覧（最新5件）

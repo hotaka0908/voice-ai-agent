@@ -1041,8 +1041,13 @@ class HybridLLM:
     ) -> str:
         """ツール実行結果を基に最終応答を生成"""
         try:
+            logger.info(f"Generating final response for request: {original_request}")
+            logger.debug(f"Tool results: {tool_results}")
+            logger.debug(f"Context length: {len(context) if context else 0}")
+
             # ツール結果を含むプロンプトを構築
             tool_summary = self._format_tool_results(tool_results)
+            logger.debug(f"Tool summary: {tool_summary}")
 
             messages = [
                 {"role": "system", "content":
@@ -1053,17 +1058,20 @@ class HybridLLM:
                  "• ツールが返した結果をそのまま伝える（余計な解釈や説明を加えない）\n"
                  "• 技術的な詳細は省略し、自然な日本語で\n"
                  "• 「〜ですね」「〜ですよ」など柔らかい語尾を使う"},
-                *context[-5:],  # 最新5件のコンテキスト
+                *context[-5:] if context else [],  # 最新5件のコンテキスト
                 {"role": "user", "content": f"元のリクエスト: {original_request}"},
                 {"role": "assistant", "content": f"ツール実行結果:\n{tool_summary}"},
                 {"role": "user", "content": "上記の結果を1〜2文以内で簡潔に伝えてください。"}
             ]
 
+            logger.debug(f"Sending {len(messages)} messages to LLM")
             response = await self._generate_with_fallback(messages)
+            logger.info(f"Successfully generated final response: {response['content'][:100]}...")
             return response["content"]
 
         except Exception as e:
             logger.error(f"Failed to generate final response: {e}")
+            logger.exception("Full traceback:")
             return "ツールを実行しましたが、結果の処理中にエラーが発生しました。"
 
     def _format_tool_results(self, tool_results: Dict[str, Any]) -> str:

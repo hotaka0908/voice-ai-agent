@@ -148,6 +148,12 @@ async def websocket_chat_endpoint(websocket: WebSocket):
 
             msg_type = message.get("type")
 
+            # セッションIDを設定（存在する場合）
+            session_id = message.get("session_id")
+            if session_id:
+                app.state.voice_agent.set_session_id(session_id)
+                logger.debug(f"WebSocket session_id set: {session_id}")
+
             # テキストメッセージ（互換: type='message' か 'text'）
             if msg_type in ("message", "text"):
                 text_payload = message.get("message") or message.get("content") or ""

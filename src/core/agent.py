@@ -25,7 +25,7 @@ class VoiceAgent:
     音声入力を受け取り、自然言語理解、ツール実行、応答生成を行う
     """
 
-    def __init__(self):
+    def __init__(self, session_id: Optional[str] = None):
         self.stt: Optional[SpeechToText] = None
         self.tts: Optional[TextToSpeech] = None
         self.llm: Optional[HybridLLM] = None
@@ -35,6 +35,7 @@ class VoiceAgent:
         self.rule_processor: Optional[RuleProcessor] = None
         self.is_initialized = False
         self.status_callback: Optional[Callable] = None
+        self.session_id = session_id  # セッションID
 
     async def initialize(self):
         """エージェントの初期化"""
@@ -107,6 +108,11 @@ class VoiceAgent:
         except Exception as e:
             logger.error(f"Error processing audio: {e}")
             return {"error": "音声処理中にエラーが発生しました"}
+
+    def set_session_id(self, session_id: str):
+        """セッションIDを設定"""
+        self.session_id = session_id
+        logger.debug(f"Agent session_id set to: {session_id}")
 
     async def process_text(self, text: str) -> Dict[str, Any]:
         """
@@ -316,6 +322,11 @@ class VoiceAgent:
                 logger.info(f"Placeholder replacement: {original_params} -> {tool_params}")
 
             try:
+                # セッションIDをパラメータに追加（Gmailなどセッション対応ツール用）
+                if self.session_id:
+                    tool_params["session_id"] = self.session_id
+                    logger.debug(f"Added session_id to tool params: {self.session_id}")
+
                 logger.info(f"Executing tool: {tool_name} with final params: {tool_params}")
                 result = await self.tools.execute_tool(tool_name, tool_params)
 

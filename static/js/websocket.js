@@ -122,16 +122,20 @@ class WebSocketManager {
             throw new Error('WebSocket not connected');
         }
 
+        // セッションIDを取得
+        const sessionId = window.sessionManager ? window.sessionManager.getSessionId() : null;
+
         // サーバ側は {type:'message', message:'...'} を想定
         // 後方互換のため、明確に message フィールドで送信する
         const message = {
             type: 'message',
             message: text,
+            session_id: sessionId,
             timestamp: new Date().toISOString()
         };
 
         this.chatWs.send(JSON.stringify(message));
-        console.log('Sent text message:', text);
+        console.log('Sent text message with session_id:', text, sessionId);
     }
 
     async sendAudioData(audioData) {

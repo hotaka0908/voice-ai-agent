@@ -1099,13 +1099,17 @@ class HybridLLM:
         primary = self.config["primary_provider"]
         fallback = self.config["fallback_provider"]
 
+        logger.info(f"Starting LLM generation with primary: {primary}, fallback: {fallback}")
+        logger.debug(f"Available providers: {[name for name, p in self.providers.items() if p.is_available]}")
+
         # プライマリプロバイダーを試行
         if primary in self.providers and self.providers[primary].is_available:
             try:
-                logger.debug(f"Attempting generation with primary provider: {primary}")
+                logger.info(f"Attempting generation with primary provider: {primary}")
                 return await self.providers[primary].generate(messages, **kwargs)
             except Exception as e:
-                logger.warning(f"Primary provider {primary} failed: {e}")
+                logger.error(f"Primary provider {primary} failed: {e}")
+                logger.exception("Full traceback for primary provider:")
 
         # フォールバックプロバイダーを試行
         if (self.config["auto_fallback"] and
@@ -1117,6 +1121,7 @@ class HybridLLM:
                 return await self.providers[fallback].generate(messages, **kwargs)
             except Exception as e:
                 logger.error(f"Fallback provider {fallback} failed: {e}")
+                logger.exception("Full traceback for fallback provider:")
 
         # 利用可能な任意のプロバイダーを試行
         for name, provider in self.providers.items():
@@ -1125,8 +1130,10 @@ class HybridLLM:
                     logger.info(f"Trying alternative provider: {name}")
                     return await provider.generate(messages, **kwargs)
                 except Exception as e:
-                    logger.warning(f"Alternative provider {name} failed: {e}")
+                    logger.error(f"Alternative provider {name} failed: {e}")
+                    logger.exception("Full traceback for alternative provider:")
 
+        logger.error("All LLM providers failed - no available providers or all attempts failed")
         raise RuntimeError("All LLM providers failed")
 
     def _convert_tools_to_openai_schema(self, tools: List[Dict]) -> List[Dict[str, Any]]:

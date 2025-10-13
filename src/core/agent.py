@@ -168,19 +168,32 @@ class VoiceAgent:
 
             # ルールにマッチし、ツール提案がある場合は先に実行（Gmail等）
             if rule_response and not rule_response.get("is_final") and rule_response.get("tool_calls"):
+                # ツール実行中のステータス通知
+                tool_names = [tc.get('name', '') for tc in rule_response.get("tool_calls", [])]
+                if self.status_callback:
+                    if 'gmail' in tool_names:
+                        await self.status_callback("📧 メールを確認中...")
+                    elif 'calendar' in tool_names:
+                        await self.status_callback("📅 予定を確認中...")
+                    elif 'alarm' in tool_names:
+                        await self.status_callback("⏰ アラームを設定中...")
+                    else:
+                        await self.status_callback("🔧 処理中...")
+
                 tool_results = await self._execute_tools(rule_response["tool_calls"])
 
                 # Gmailツールの結果からメールIDを抽出してコンテキストに保存
                 await self._extract_and_store_email_ids(tool_results)
 
-                # 単純にツール結果を応答として返す（フォーマット済み文字列想定）
-                combined_texts = []
-                for name, result in tool_results.items():
-                    if isinstance(result, str):
-                        combined_texts.append(result)
-                    else:
-                        combined_texts.append(str(result))
-                final_response = "\n\n".join([t for t in combined_texts if t]) or "処理が完了しました。"
+                # ツール結果を含めて再度LLM処理（自然な応答を生成）
+                if self.status_callback:
+                    await self.status_callback("🗣️ 応答を生成中...")
+
+                final_response = await self.llm.generate_final_response(
+                    original_request=text,
+                    tool_results=tool_results,
+                    context=self.context.get_context()
+                )
 
                 await self.context.add_assistant_message(final_response)
                 await self.memory.store_interaction(text, final_response)

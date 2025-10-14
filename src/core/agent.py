@@ -189,12 +189,21 @@ class VoiceAgent:
                 # メール状態を更新（次回の「他のメール」要求に備える）
                 await self._update_email_state_from_results(tool_results)
 
-                # Gmailツールは音声向けフォーマット済みなので、結果をそのまま使用
-                # （ツールが既に _summarize_body() で要約済み）
+                # ツール結果から適切な応答を抽出
                 final_response = ""
                 for tool_name, result in tool_results.items():
                     if not tool_name.endswith("_metadata"):
-                        final_response = str(result)
+                        # 結果が辞書型の場合、messageキーを優先的に使用
+                        if isinstance(result, dict):
+                            if "message" in result:
+                                final_response = result["message"]
+                            else:
+                                # messageキーがない場合は辞書全体を文字列化
+                                import json
+                                final_response = json.dumps(result, ensure_ascii=False, indent=2)
+                        else:
+                            # 文字列などそのまま使えるデータ
+                            final_response = str(result)
                         break
 
                 # フォールバック

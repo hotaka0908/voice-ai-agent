@@ -1097,12 +1097,11 @@ class HybridLLM:
             if context:
                 messages.extend(context[-5:])
 
-            # リクエストと結果を追加
-            messages.extend([
-                {"role": "user", "content": f"元のリクエスト: {original_request}"},
-                {"role": "assistant", "content": f"ツール実行結果:\n{tool_summary}"},
-                {"role": "user", "content": "上記の結果を1〜2文以内で簡潔に伝えてください。"}
-            ])
+            # リクエストと結果を追加（userメッセージ1つにまとめる）
+            messages.append({
+                "role": "user",
+                "content": f"元のリクエスト: {original_request}\n\nツール実行結果:\n{tool_summary}\n\n上記の結果を1〜2文以内で簡潔に伝えてください。"
+            })
 
             logger.debug(f"Sending {len(messages)} messages to LLM")
             response = await self._generate_with_fallback(messages)

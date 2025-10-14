@@ -242,15 +242,17 @@ class TextToSpeech:
 
     async def _get_cached_audio(self, text: str, speed: Optional[float] = None) -> Optional[str]:
         """キャッシュされた音声を取得"""
-        # 速度も考慮したハッシュ
-        cache_key = f"{text}_{self.config['voice_id']}_{speed}"
+        # 速度とvoiceも考慮したハッシュ（OpenAI TTSの場合はvoiceを使用）
+        voice_key = self.config.get('voice', self.config.get('voice_id', 'default'))
+        cache_key = f"{text}_{voice_key}_{speed}"
         text_hash = hash(cache_key)
         return self.audio_cache.get(text_hash)
 
     async def _cache_audio(self, text: str, audio_url: str, speed: Optional[float] = None):
         """音声をキャッシュに保存"""
-        # 速度も考慮したハッシュ
-        cache_key = f"{text}_{self.config['voice_id']}_{speed}"
+        # 速度とvoiceも考慮したハッシュ（OpenAI TTSの場合はvoiceを使用）
+        voice_key = self.config.get('voice', self.config.get('voice_id', 'default'))
+        cache_key = f"{text}_{voice_key}_{speed}"
         text_hash = hash(cache_key)
         self.audio_cache[text_hash] = audio_url
 

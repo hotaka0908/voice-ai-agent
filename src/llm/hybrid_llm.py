@@ -132,30 +132,51 @@ class ClaudeProvider(LLMProvider):
 
     def _convert_messages(self, messages: List[Dict]) -> List[Dict]:
         """メッセージをAnthropic形式に変換"""
-        anthropic_messages = []
+        # まずsystemメッセージを分離
+        system_content = ""
+        non_system_messages = []
 
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
 
-            # システムメッセージは最初のユーザーメッセージに結合
             if role == "system":
-                if anthropic_messages and anthropic_messages[0]["role"] == "user":
-                    anthropic_messages[0]["content"] = f"{content}\n\n{anthropic_messages[0]['content']}"
+                if system_content:
+                    system_content += f"\n\n{content}"
                 else:
-                    anthropic_messages.insert(0, {"role": "user", "content": content})
+                    system_content = content
             else:
-                # assistantはassistant、userはuserに変換
-                anthropic_role = "assistant" if role == "assistant" else "user"
+                non_system_messages.append(msg)
 
-                # 連続する同じroleのメッセージを結合
-                if anthropic_messages and anthropic_messages[-1]["role"] == anthropic_role:
-                    anthropic_messages[-1]["content"] += f"\n\n{content}"
-                else:
-                    anthropic_messages.append({
-                        "role": anthropic_role,
-                        "content": content
-                    })
+        # Anthropic形式のメッセージを構築
+        anthropic_messages = []
+
+        for msg in non_system_messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            # assistantはassistant、userはuserに変換
+            anthropic_role = "assistant" if role == "assistant" else "user"
+
+            # 連続する同じroleのメッセージを結合
+            if anthropic_messages and anthropic_messages[-1]["role"] == anthropic_role:
+                anthropic_messages[-1]["content"] += f"\n\n{content}"
+            else:
+                anthropic_messages.append({
+                    "role": anthropic_role,
+                    "content": content
+                })
+
+        # システムメッセージを最初のユーザーメッセージに結合
+        if system_content and anthropic_messages:
+            if anthropic_messages[0]["role"] == "user":
+                anthropic_messages[0]["content"] = f"{system_content}\n\n{anthropic_messages[0]['content']}"
+            else:
+                # 最初がassistantの場合は、その前にuserメッセージを挿入
+                anthropic_messages.insert(0, {"role": "user", "content": system_content})
+        elif system_content:
+            # メッセージがsystemのみの場合
+            anthropic_messages.append({"role": "user", "content": system_content})
 
         return anthropic_messages
 

@@ -156,8 +156,9 @@ class VoiceAgent:
                 if memory_tool:
                     await memory_tool.save_conversation(text, final_response)
 
-                # 音声合成
-                audio_url = await self.tts.synthesize(final_response)
+                # 音声合成（計算結果の場合は速度を0.9倍速に）
+                speed = 0.9 if self._is_calculation_result(final_response) else None
+                audio_url = await self.tts.synthesize(final_response, speed=speed)
 
                 return {
                     "text": final_response,
@@ -217,7 +218,9 @@ class VoiceAgent:
                 if memory_tool:
                     await memory_tool.save_conversation(text, final_response)
 
-                audio_url = await self.tts.synthesize(final_response)
+                # 音声合成（計算結果の場合は速度を0.9倍速に）
+                speed = 0.9 if self._is_calculation_result(final_response) else None
+                audio_url = await self.tts.synthesize(final_response, speed=speed)
 
                 return {
                     "text": final_response,
@@ -321,8 +324,9 @@ class VoiceAgent:
             if memory_tool:
                 await memory_tool.save_conversation(text, final_response)
 
-            # 8. 音声合成
-            audio_url = await self.tts.synthesize(final_response)
+            # 8. 音声合成（計算結果の場合は速度を0.9倍速に）
+            speed = 0.9 if self._is_calculation_result(final_response) else None
+            audio_url = await self.tts.synthesize(final_response, speed=speed)
 
             return {
                 "text": final_response,
@@ -528,3 +532,16 @@ class VoiceAgent:
     async def _get_current_timestamp(self) -> str:
         """現在のタイムスタンプをISO形式で返す"""
         return datetime.now().isoformat()
+
+    def _is_calculation_result(self, text: str) -> bool:
+        """テキストが計算結果かどうかを判定"""
+        import re
+        # 計算結果のパターン: "数字 演算子 数字 = 数字"
+        calculation_patterns = [
+            r'\d+\s*[\+\-×÷\*\/]\s*\d+\s*=\s*\d+',  # 52 + 2 = 54
+            r'\d+\s*[\+\-×÷\*\/]\s*\d+\s*=',  # 52 + 2 =
+        ]
+        for pattern in calculation_patterns:
+            if re.search(pattern, text):
+                return True
+        return False

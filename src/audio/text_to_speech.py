@@ -118,12 +118,13 @@ class TextToSpeech:
             logger.error(f"Failed to initialize ElevenLabs voices: {e}")
             raise
 
-    async def synthesize(self, text: str) -> str:
+    async def synthesize(self, text: str, speed: Optional[float] = None) -> str:
         """
         テキストを音声に変換
 
         Args:
             text: 合成するテキスト
+            speed: 音声速度 (0.25 ~ 4.0, Noneの場合はデフォルト速度を使用)
 
         Returns:
             生成された音声ファイルのURL
@@ -136,11 +137,11 @@ class TextToSpeech:
             return ""
 
         try:
-            logger.info(f"Synthesizing text: {text[:50]}...")
+            logger.info(f"Synthesizing text: {text[:50]}... (speed: {speed})")
 
-            # キャッシュチェック
+            # キャッシュチェック（速度も考慮）
             if self.config["cache_enabled"]:
-                cached_url = await self._get_cached_audio(text)
+                cached_url = await self._get_cached_audio(text, speed)
                 if cached_url:
                     logger.debug("Using cached audio")
                     return cached_url
@@ -150,7 +151,7 @@ class TextToSpeech:
             if self.config["provider"] == "elevenlabs" and self.elevenlabs_client:
                 audio_path = await self._synthesize_elevenlabs(text)
             elif self.config["provider"] == "openai" and hasattr(self, 'openai_client'):
-                audio_path = await self._synthesize_openai(text)
+                audio_path = await self._synthesize_openai(text, speed)
             elif self.config["provider"] == "gtts" and GTTS_AVAILABLE:
                 audio_path = await self._synthesize_gtts(text)
             else:
@@ -164,7 +165,7 @@ class TextToSpeech:
 
                 # キャッシュに保存
                 if self.config["cache_enabled"]:
-                    await self._cache_audio(text, audio_url)
+                    await self._cache_audio(text, audio_url, speed)
 
                 logger.info(f"Audio synthesized: {audio_url}")
                 return audio_url
@@ -238,14 +239,18 @@ class TextToSpeech:
             logger.error(f"gTTS synthesis failed: {e}")
             raise
 
-    async def _get_cached_audio(self, text: str) -> Optional[str]:
+    async def _get_cached_audio(self, text: str, speed: Optional[float] = None) -> Optional[str]:
         """キャッシュされた音声を取得"""
-        text_hash = hash(text + self.config["voice_id"])
+        # 速度も考慮したハッシュ
+        cache_key = f"{text}_{self.config['voice_id']}_{speed}"
+        text_hash = hash(cache_key)
         return self.audio_cache.get(text_hash)
 
-    async def _cache_audio(self, text: str, audio_url: str):
+    async def _cache_audio(self, text: str, audio_url: str, speed: Optional[float] = None):
         """音声をキャッシュに保存"""
-        text_hash = hash(text + self.config["voice_id"])
+        # 速度も考慮したハッシュ
+        cache_key = f"{text}_{self.config['voice_id']}_{speed}"
+        text_hash = hash(cache_key)
         self.audio_cache[text_hash] = audio_url
 
         # キャッシュサイズ制限（1000エントリー）
@@ -324,14 +329,15 @@ class TextToSpeech:
         except Exception as e:
             logger.warning(f"Failed to clear disk cache: {e}")
 
-    async def _synthesize_openai(self, text: str) -> Optional[str]:
+    async def _synthesize_openai(self, text: str, custom_speed: Optional[float] = None) -> Optional[str]:
         """OpenAI TTSによる音声合成"""
         try:
             logger.debug(f"Synthesizing with OpenAI TTS: {text[:50]}...")
 
             # OpenAI TTS API呼び出し
             voice = self.config.get("voice", "alloy")
-            speed = self.config.get("speed", 1.2)  # デフォルト1.2倍速
+            # カスタム速度が指定されていればそれを使用、なければデフォルト速度
+            speed = custom_speed if custom_speed is not None else self.config.get("speed", 1.2)
             response = self.openai_client.audio.speech.create(
                 model="tts-1",  # tts-1 または tts-1-hd
                 voice=voice,  # alloy, echo, fable, onyx, nova, shimmer
@@ -349,7 +355,7 @@ class TextToSpeech:
             with open(audio_path, 'wb') as f:
                 f.write(response.content)
 
-            logger.debug(f"OpenAI TTS audio saved to: {audio_path}")
+            logger.debug(f"OpenAI TTS audio saved to: {audio_path} (speed: {speed})")
             return audio_path
 
         except Exception as e:

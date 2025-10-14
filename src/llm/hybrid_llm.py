@@ -147,10 +147,15 @@ class ClaudeProvider(LLMProvider):
             else:
                 # assistantはassistant、userはuserに変換
                 anthropic_role = "assistant" if role == "assistant" else "user"
-                anthropic_messages.append({
-                    "role": anthropic_role,
-                    "content": content
-                })
+
+                # 連続する同じroleのメッセージを結合
+                if anthropic_messages and anthropic_messages[-1]["role"] == anthropic_role:
+                    anthropic_messages[-1]["content"] += f"\n\n{content}"
+                else:
+                    anthropic_messages.append({
+                        "role": anthropic_role,
+                        "content": content
+                    })
 
         return anthropic_messages
 

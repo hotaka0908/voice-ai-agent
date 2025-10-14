@@ -44,7 +44,7 @@ class TextToSpeech:
             "language": "ja",
             "cache_enabled": True,
             "output_directory": "./data/audio",
-            "speed": 1.0  # デフォルト速度（1.0 = 通常速度）
+            "speed": 1.2  # デフォルト速度（1.2倍速）
         }
 
     async def initialize(self):
@@ -338,7 +338,7 @@ class TextToSpeech:
             # OpenAI TTS API呼び出し
             voice = self.config.get("voice", "nova")
             # カスタム速度が指定されていればそれを使用、なければデフォルト速度
-            speed = custom_speed if custom_speed is not None else self.config.get("speed", 1.0)
+            speed = custom_speed if custom_speed is not None else self.config.get("speed", 1.2)
             response = self.openai_client.audio.speech.create(
                 model="tts-1-hd",  # tts-1-hd = 高品質、tts-1 = 標準
                 voice=voice,  # alloy, echo, fable, onyx, nova, shimmer (nova is best for Japanese)

@@ -1122,7 +1122,19 @@ class HybridLLM:
             # メタデータキーはスキップ（_metadataサフィックス）
             if tool_name.endswith('_metadata'):
                 continue
-            formatted_results.append(f"{tool_name}: {result}")
+
+            # 結果が辞書型の場合、ユーザー向けメッセージを抽出
+            if isinstance(result, dict):
+                # "message"キーがあればそれを優先的に使用
+                if "message" in result:
+                    formatted_results.append(f"{tool_name}: {result['message']}")
+                else:
+                    # メッセージがない場合はJSON形式で表示
+                    import json
+                    formatted_results.append(f"{tool_name}: {json.dumps(result, ensure_ascii=False, indent=2)}")
+            else:
+                # 文字列などそのまま使えるデータ
+                formatted_results.append(f"{tool_name}: {result}")
 
         return "\n".join(formatted_results)
 

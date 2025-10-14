@@ -35,7 +35,7 @@ class TextToSpeech:
         self.config = {
             "provider": "openai",  # openai, gtts, browser
             "voice_id": "default",
-            "voice": "alloy",  # OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer
+            "voice": "nova",  # OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer (nova is best for Japanese)
             "model": "eleven_monolingual_v1",
             "stability": 0.5,
             "similarity_boost": 0.75,
@@ -43,7 +43,8 @@ class TextToSpeech:
             "use_speaker_boost": True,
             "language": "ja",
             "cache_enabled": True,
-            "output_directory": "./data/audio"
+            "output_directory": "./data/audio",
+            "speed": 1.0  # デフォルト速度（1.0 = 通常速度）
         }
 
     async def initialize(self):
@@ -335,12 +336,12 @@ class TextToSpeech:
             logger.debug(f"Synthesizing with OpenAI TTS: {text[:50]}...")
 
             # OpenAI TTS API呼び出し
-            voice = self.config.get("voice", "alloy")
+            voice = self.config.get("voice", "nova")
             # カスタム速度が指定されていればそれを使用、なければデフォルト速度
-            speed = custom_speed if custom_speed is not None else self.config.get("speed", 1.2)
+            speed = custom_speed if custom_speed is not None else self.config.get("speed", 1.0)
             response = self.openai_client.audio.speech.create(
-                model="tts-1",  # tts-1 または tts-1-hd
-                voice=voice,  # alloy, echo, fable, onyx, nova, shimmer
+                model="tts-1-hd",  # tts-1-hd = 高品質、tts-1 = 標準
+                voice=voice,  # alloy, echo, fable, onyx, nova, shimmer (nova is best for Japanese)
                 input=text,
                 speed=speed,  # 0.25 ~ 4.0 (デフォルト1.0)
                 response_format="mp3"
